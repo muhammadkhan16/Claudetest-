@@ -1,0 +1,11 @@
+{
+  "/_global-error/page": "/_global-error",
+  "/_not-found/page": "/_not-found",
+  "/dashboard/client-audit/page": "/dashboard/client-audit",
+  "/dashboard/listing-ai/page": "/dashboard/listing-ai",
+  "/dashboard/page": "/dashboard",
+  "/dashboard/ppc-optimizer/page": "/dashboard/ppc-optimizer",
+  "/dashboard/profit-center/page": "/dashboard/profit-center",
+  "/favicon.ico/route": "/favicon.ico",
+  "/page": "/"
+}

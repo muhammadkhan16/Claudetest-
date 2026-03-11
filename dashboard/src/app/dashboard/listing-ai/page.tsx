@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Bot, Sparkles, Copy, RefreshCw } from "lucide-react";
+import { Bot, Sparkles, Copy, RefreshCw, CheckCheck } from "lucide-react";
 
 const suggestions = [
   {
@@ -36,83 +36,87 @@ export default function ListingAIPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold text-gray-900">Listing AI</h2>
-        <p className="text-sm text-gray-500 mt-1">
+        <h2 className="text-2xl font-bold text-[#0F172A]">Listing AI</h2>
+        <p className="text-sm text-[#94A3B8] mt-1">
           AI-powered listing optimization for higher conversion and ranking
         </p>
       </div>
 
       {/* Input Card */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 space-y-4">
+      <div className="bg-white rounded-xl border border-[#E2E8F0] p-6 space-y-4 shadow-sm">
         <div className="flex items-center gap-2">
-          <Bot size={18} style={{ color: "#FF9900" }} />
-          <h3 className="text-sm font-semibold text-gray-900">Generate Optimized Copy</h3>
+          <Bot size={17} style={{ color: "#2563EB" }} />
+          <h3 className="text-sm font-semibold text-[#0F172A]">Generate Optimized Copy</h3>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Product Name</label>
+            <label className="block text-xs font-medium text-[#64748B] mb-1.5">Product Name</label>
             <input
               type="text"
               defaultValue="Wireless Earbuds Pro"
-              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:border-transparent"
-              style={{ "--tw-ring-color": "#FF9900" } as React.CSSProperties}
+              className="w-full px-3 py-2 text-sm bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg
+                         text-[#0F172A] placeholder-[#94A3B8]
+                         focus:outline-none focus:ring-2 focus:ring-[#2563EB]/30 focus:border-[#2563EB]
+                         transition-colors"
             />
           </div>
           <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Target Keywords</label>
+            <label className="block text-xs font-medium text-[#64748B] mb-1.5">Target Keywords</label>
             <input
               type="text"
               defaultValue="noise cancelling, bluetooth 5.3, waterproof"
-              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:border-transparent"
+              className="w-full px-3 py-2 text-sm bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg
+                         text-[#0F172A] placeholder-[#94A3B8]
+                         focus:outline-none focus:ring-2 focus:ring-[#2563EB]/30 focus:border-[#2563EB]
+                         transition-colors"
             />
           </div>
         </div>
         <button
-          className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white rounded-lg transition-opacity hover:opacity-90"
-          style={{ backgroundColor: "#FF9900" }}
+          className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white rounded-lg
+                     transition-all hover:opacity-90 active:scale-95"
+          style={{ backgroundColor: "#2563EB" }}
         >
-          <Sparkles size={15} />
+          <Sparkles size={14} />
           Generate with AI
         </button>
       </div>
 
       {/* Suggestions */}
       <div className="space-y-3">
-        <h3 className="text-sm font-semibold text-gray-700">AI Suggestions</h3>
+        <h3 className="text-sm font-semibold text-[#64748B]">AI Suggestions</h3>
         {suggestions.map(({ field, original, optimized }) => (
-          <div key={field} className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 space-y-3">
+          <div key={field} className="bg-white rounded-xl border border-[#E2E8F0] p-5 space-y-3
+                                      shadow-sm hover:shadow-md transition-shadow">
             <div className="flex items-center justify-between">
               <span
-                className="text-xs font-semibold px-2 py-0.5 rounded-md text-white"
-                style={{ backgroundColor: "#FF9900" }}
+                className="text-xs font-semibold px-2.5 py-1 rounded-md text-white"
+                style={{ backgroundColor: "#2563EB" }}
               >
                 {field}
               </span>
               <button
                 onClick={() => handleCopy(optimized, field)}
-                className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-700 transition-colors"
+                className="flex items-center gap-1.5 text-xs text-[#94A3B8] hover:text-[#0F172A] transition-colors"
               >
                 {copied === field ? (
-                  <span className="text-emerald-600 font-medium">Copied!</span>
+                  <><CheckCheck size={13} className="text-emerald-500" /><span className="text-emerald-600 font-medium">Copied!</span></>
                 ) : (
-                  <>
-                    <Copy size={13} />
-                    Copy
-                  </>
+                  <><Copy size={13} />Copy</>
                 )}
               </button>
             </div>
             <div className="grid sm:grid-cols-2 gap-3">
-              <div className="rounded-lg bg-gray-50 border border-gray-200 p-3">
-                <p className="text-xs font-medium text-gray-400 mb-1">Original</p>
-                <p className="text-sm text-gray-600">{original}</p>
+              <div className="rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] p-3">
+                <p className="text-xs font-medium text-[#94A3B8] mb-1.5">Original</p>
+                <p className="text-sm text-[#64748B]">{original}</p>
               </div>
-              <div className="rounded-lg border p-3" style={{ backgroundColor: "#FFF8EC", borderColor: "#FFD580" }}>
-                <div className="flex items-center gap-1 mb-1">
-                  <RefreshCw size={11} style={{ color: "#FF9900" }} />
-                  <p className="text-xs font-medium" style={{ color: "#CC7A00" }}>AI Optimized</p>
+              <div className="rounded-lg bg-[#EFF6FF] border border-[#BFDBFE] p-3">
+                <div className="flex items-center gap-1.5 mb-1.5">
+                  <RefreshCw size={11} style={{ color: "#2563EB" }} />
+                  <p className="text-xs font-medium text-[#2563EB]">AI Optimized</p>
                 </div>
-                <p className="text-sm text-gray-800">{optimized}</p>
+                <p className="text-sm text-[#0F172A]">{optimized}</p>
               </div>
             </div>
           </div>
