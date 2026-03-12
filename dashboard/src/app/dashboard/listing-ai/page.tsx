@@ -1,37 +1,68 @@
 "use client";
 
 import { useState } from "react";
-import { Bot, Sparkles, Copy, RefreshCw, CheckCheck } from "lucide-react";
+import { Bot, Sparkles, Copy, CheckCheck, Loader2 } from "lucide-react";
 
-const suggestions = [
-  {
-    field: "Title",
-    original: "Wireless Earbuds with Charging Case",
-    optimized:
-      "Wireless Earbuds Pro | Active Noise Cancelling, 32H Battery, IPX5 Waterproof | Bluetooth 5.3 Earphones with LED Charging Case",
-  },
-  {
-    field: "Bullet Point 1",
-    original: "Good sound quality",
-    optimized:
-      "SUPERIOR SOUND QUALITY — Engineered with 10mm dynamic drivers and custom EQ tuning to deliver rich bass, crisp highs, and immersive stereo audio for music, calls, and podcasts.",
-  },
-  {
-    field: "Search Terms",
-    original: "earbuds wireless bluetooth",
-    optimized:
-      "wireless earbuds bluetooth noise cancelling earphones true wireless stereo earbuds sport workout earbuds ipx5 waterproof earbuds with mic",
-  },
-];
+interface ListingResult {
+  score: number;
+  estimatedTrafficLift: string;
+  title: { current: string; optimized: string };
+  description: { current: string; optimized: string };
+  bullets: Array<{ current: string; optimized: string }>;
+}
+
+const API_URL =
+  process.env.NEXT_PUBLIC_API_URL ?? "https://amazon-dashboard-api.workers.dev";
 
 export default function ListingAIPage() {
+  const [form, setForm] = useState({
+    productName: "",
+    category: "",
+    currentTitle: "",
+    currentDescription: "",
+    bulletPoints: ["", "", "", "", ""],
+    keywords: "",
+  });
+  const [result, setResult] = useState<ListingResult | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
 
-  const handleCopy = (text: string, field: string) => {
+  function updateBullet(index: number, value: string) {
+    const updated = [...form.bulletPoints];
+    updated[index] = value;
+    setForm({ ...form, bulletPoints: updated });
+  }
+
+  async function handleGenerate() {
+    if (!form.productName || !form.currentTitle) {
+      setError("Product name and current title are required.");
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    setResult(null);
+    try {
+      const res = await fetch(`${API_URL}/api/ai/listing-analysis`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error?.message ?? "API error");
+      setResult(json.data);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Something went wrong");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function handleCopy(text: string, key: string) {
     navigator.clipboard.writeText(text);
-    setCopied(field);
+    setCopied(key);
     setTimeout(() => setCopied(null), 2000);
-  };
+  }
 
   return (
     <div className="space-y-6">
@@ -43,84 +74,224 @@ export default function ListingAIPage() {
       </div>
 
       {/* Input Card */}
-      <div className="bg-white rounded-xl border border-[#E2E8F0] p-6 space-y-4 shadow-sm">
+      <div className="bg-white rounded-xl border border-[#E2E8F0] p-6 space-y-5 shadow-sm">
         <div className="flex items-center gap-2">
           <Bot size={17} style={{ color: "#2563EB" }} />
-          <h3 className="text-sm font-semibold text-[#0F172A]">Generate Optimized Copy</h3>
+          <h3 className="text-sm font-semibold text-[#0F172A]">Product Details</h3>
         </div>
+
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-xs font-medium text-[#64748B] mb-1.5">Product Name</label>
+          <Field label="Product Name *">
             <input
               type="text"
-              defaultValue="Wireless Earbuds Pro"
-              className="w-full px-3 py-2 text-sm bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg
-                         text-[#0F172A] placeholder-[#94A3B8]
-                         focus:outline-none focus:ring-2 focus:ring-[#2563EB]/30 focus:border-[#2563EB]
-                         transition-colors"
+              placeholder="e.g. Wireless Earbuds Pro"
+              value={form.productName}
+              onChange={(e) => setForm({ ...form, productName: e.target.value })}
+              className={inputCls}
             />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-[#64748B] mb-1.5">Target Keywords</label>
+          </Field>
+          <Field label="Category">
             <input
               type="text"
-              defaultValue="noise cancelling, bluetooth 5.3, waterproof"
-              className="w-full px-3 py-2 text-sm bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg
-                         text-[#0F172A] placeholder-[#94A3B8]
-                         focus:outline-none focus:ring-2 focus:ring-[#2563EB]/30 focus:border-[#2563EB]
-                         transition-colors"
+              placeholder="e.g. Electronics > Headphones"
+              value={form.category}
+              onChange={(e) => setForm({ ...form, category: e.target.value })}
+              className={inputCls}
             />
-          </div>
+          </Field>
         </div>
+
+        <Field label="Current Title *">
+          <input
+            type="text"
+            placeholder="Your current Amazon title"
+            value={form.currentTitle}
+            onChange={(e) => setForm({ ...form, currentTitle: e.target.value })}
+            className={inputCls}
+          />
+        </Field>
+
+        <Field label="Target Keywords">
+          <input
+            type="text"
+            placeholder="e.g. noise cancelling, bluetooth 5.3, waterproof"
+            value={form.keywords}
+            onChange={(e) => setForm({ ...form, keywords: e.target.value })}
+            className={inputCls}
+          />
+        </Field>
+
+        <Field label="Current Description">
+          <textarea
+            rows={3}
+            placeholder="Your current product description"
+            value={form.currentDescription}
+            onChange={(e) => setForm({ ...form, currentDescription: e.target.value })}
+            className={inputCls + " resize-none"}
+          />
+        </Field>
+
+        <div className="space-y-2">
+          <label className="block text-xs font-medium text-[#64748B]">
+            Current Bullet Points
+          </label>
+          {form.bulletPoints.map((b, i) => (
+            <input
+              key={i}
+              type="text"
+              placeholder={`Bullet point ${i + 1}`}
+              value={b}
+              onChange={(e) => updateBullet(i, e.target.value)}
+              className={inputCls}
+            />
+          ))}
+        </div>
+
+        {error && (
+          <p className="text-sm text-red-500">{error}</p>
+        )}
+
         <button
+          onClick={handleGenerate}
+          disabled={loading}
           className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white rounded-lg
-                     transition-all hover:opacity-90 active:scale-95"
+                     transition-all hover:opacity-90 active:scale-95 disabled:opacity-60"
           style={{ backgroundColor: "#2563EB" }}
         >
-          <Sparkles size={14} />
-          Generate with AI
+          {loading ? (
+            <><Loader2 size={14} className="animate-spin" />Generating...</>
+          ) : (
+            <><Sparkles size={14} />Generate with AI</>
+          )}
         </button>
       </div>
 
-      {/* Suggestions */}
-      <div className="space-y-3">
-        <h3 className="text-sm font-semibold text-[#64748B]">AI Suggestions</h3>
-        {suggestions.map(({ field, original, optimized }) => (
-          <div key={field} className="bg-white rounded-xl border border-[#E2E8F0] p-5 space-y-3
-                                      shadow-sm hover:shadow-md transition-shadow">
-            <div className="flex items-center justify-between">
-              <span
-                className="text-xs font-semibold px-2.5 py-1 rounded-md text-white"
-                style={{ backgroundColor: "#2563EB" }}
-              >
-                {field}
-              </span>
-              <button
-                onClick={() => handleCopy(optimized, field)}
-                className="flex items-center gap-1.5 text-xs text-[#94A3B8] hover:text-[#0F172A] transition-colors"
-              >
-                {copied === field ? (
-                  <><CheckCheck size={13} className="text-emerald-500" /><span className="text-emerald-600 font-medium">Copied!</span></>
-                ) : (
-                  <><Copy size={13} />Copy</>
-                )}
-              </button>
+      {/* Results */}
+      {result && (
+        <div className="space-y-4">
+          {/* Score bar */}
+          <div className="bg-white rounded-xl border border-[#E2E8F0] p-5 shadow-sm flex items-center gap-6">
+            <div className="text-center">
+              <p className="text-3xl font-bold text-[#2563EB]">{result.score}</p>
+              <p className="text-xs text-[#94A3B8] mt-0.5">Listing Score</p>
             </div>
-            <div className="grid sm:grid-cols-2 gap-3">
-              <div className="rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] p-3">
-                <p className="text-xs font-medium text-[#94A3B8] mb-1.5">Original</p>
-                <p className="text-sm text-[#64748B]">{original}</p>
-              </div>
-              <div className="rounded-lg bg-[#EFF6FF] border border-[#BFDBFE] p-3">
-                <div className="flex items-center gap-1.5 mb-1.5">
-                  <RefreshCw size={11} style={{ color: "#2563EB" }} />
-                  <p className="text-xs font-medium text-[#2563EB]">AI Optimized</p>
-                </div>
-                <p className="text-sm text-[#0F172A]">{optimized}</p>
-              </div>
+            <div className="h-10 w-px bg-[#E2E8F0]" />
+            <div>
+              <p className="text-sm font-semibold text-[#0F172A]">
+                Estimated Traffic Lift: <span className="text-emerald-600">{result.estimatedTrafficLift}</span>
+              </p>
+              <p className="text-xs text-[#94A3B8] mt-0.5">
+                Based on keyword integration and copy improvements
+              </p>
             </div>
           </div>
-        ))}
+
+          {/* Title */}
+          <ResultCard
+            label="Title"
+            current={result.title.current}
+            optimized={result.title.optimized}
+            copyKey="title"
+            copied={copied}
+            onCopy={handleCopy}
+          />
+
+          {/* Description */}
+          <ResultCard
+            label="Description"
+            current={result.description.current}
+            optimized={result.description.optimized}
+            copyKey="description"
+            copied={copied}
+            onCopy={handleCopy}
+          />
+
+          {/* Bullets */}
+          {result.bullets.map((b, i) => (
+            <ResultCard
+              key={i}
+              label={`Bullet Point ${i + 1}`}
+              current={b.current}
+              optimized={b.optimized}
+              copyKey={`bullet-${i}`}
+              copied={copied}
+              onCopy={handleCopy}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+
+const inputCls =
+  "w-full px-3 py-2 text-sm bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg " +
+  "text-[#0F172A] placeholder-[#94A3B8] " +
+  "focus:outline-none focus:ring-2 focus:ring-[#2563EB]/30 focus:border-[#2563EB] transition-colors";
+
+function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <label className="block text-xs font-medium text-[#64748B] mb-1.5">
+        {label}
+      </label>
+      {children}
+    </div>
+  );
+}
+
+function ResultCard({
+  label,
+  current,
+  optimized,
+  copyKey,
+  copied,
+  onCopy,
+}: {
+  label: string;
+  current: string;
+  optimized: string;
+  copyKey: string;
+  copied: string | null;
+  onCopy: (text: string, key: string) => void;
+}) {
+  return (
+    <div className="bg-white rounded-xl border border-[#E2E8F0] p-5 space-y-3 shadow-sm">
+      <div className="flex items-center justify-between">
+        <span
+          className="text-xs font-semibold px-2.5 py-1 rounded-md text-white"
+          style={{ backgroundColor: "#2563EB" }}
+        >
+          {label}
+        </span>
+        <button
+          onClick={() => onCopy(optimized, copyKey)}
+          className="flex items-center gap-1.5 text-xs text-[#94A3B8] hover:text-[#0F172A] transition-colors"
+        >
+          {copied === copyKey ? (
+            <><CheckCheck size={13} className="text-emerald-500" /><span className="text-emerald-600 font-medium">Copied!</span></>
+          ) : (
+            <><Copy size={13} />Copy</>
+          )}
+        </button>
+      </div>
+      <div className="grid sm:grid-cols-2 gap-3">
+        <div className="rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] p-3">
+          <p className="text-xs font-medium text-[#94A3B8] mb-1.5">Current</p>
+          <p className="text-sm text-[#64748B] whitespace-pre-wrap">{current || "—"}</p>
+        </div>
+        <div className="rounded-lg bg-[#EFF6FF] border border-[#BFDBFE] p-3">
+          <p className="text-xs font-medium text-[#2563EB] mb-1.5">AI Optimized</p>
+          <p className="text-sm text-[#0F172A] whitespace-pre-wrap">{optimized}</p>
+        </div>
       </div>
     </div>
   );
