@@ -12,7 +12,7 @@ interface ListingResult {
 }
 
 const API_URL =
-  process.env.NEXT_PUBLIC_API_URL ?? "https://amazon-dashboard-api.workers.dev";
+  process.env.NEXT_PUBLIC_API_URL ?? "https://amazon-dashboard-api.masud-ba7.workers.dev";
 
 export default function ListingAIPage() {
   const [form, setForm] = useState({
