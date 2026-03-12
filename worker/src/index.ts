@@ -1,5 +1,3 @@
-import Anthropic from "@anthropic-ai/sdk";
-
 export interface Env {
   ANTHROPIC_API_KEY: string;
 }
@@ -53,8 +51,6 @@ async function handleListingAnalysis(
     return error("ANTHROPIC_API_KEY not configured", 500);
   }
 
-  const client = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
-
   const bulletList = input.bulletPoints
     .map((b, i) => `Bullet ${i + 1}: ${b || "(empty)"}`)
     .join("\n");
@@ -91,14 +87,30 @@ Return a JSON object with this exact structure (no markdown, raw JSON only):
   ]
 }`;
 
-  const message = await client.messages.create({
-    model: "claude-sonnet-4-6",
-    max_tokens: 2048,
-    messages: [{ role: "user", content: prompt }],
+  const response = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": env.ANTHROPIC_API_KEY,
+      "anthropic-version": "2023-06-01",
+    },
+    body: JSON.stringify({
+      model: "claude-sonnet-4-6",
+      max_tokens: 2048,
+      messages: [{ role: "user", content: prompt }],
+    }),
   });
 
+  if (!response.ok) {
+    const errText = await response.text();
+    return error(`Anthropic API error: ${errText}`, 500);
+  }
+
+  const aiResponse: { content: Array<{ type: string; text: string }> } =
+    await response.json();
+
   const text =
-    message.content[0].type === "text" ? message.content[0].text : "";
+    aiResponse.content[0]?.type === "text" ? aiResponse.content[0].text : "";
   const jsonMatch = text.match(/\{[\s\S]*\}/);
   if (!jsonMatch) return error("Invalid AI response");
 
