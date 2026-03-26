@@ -1,0 +1,11 @@
+{
+  "/_global-error/page": "app/_global-error/page.js",
+  "/_not-found/page": "app/_not-found/page.js",
+  "/dashboard/client-audit/page": "app/dashboard/client-audit/page.js",
+  "/dashboard/listing-ai/page": "app/dashboard/listing-ai/page.js",
+  "/dashboard/page": "app/dashboard/page.js",
+  "/dashboard/ppc-optimizer/page": "app/dashboard/ppc-optimizer/page.js",
+  "/dashboard/profit-center/page": "app/dashboard/profit-center/page.js",
+  "/favicon.ico/route": "app/favicon.ico/route.js",
+  "/page": "app/page.js"
+}

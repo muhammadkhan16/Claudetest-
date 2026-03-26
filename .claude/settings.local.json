@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(taskkill //F //PID 23632 2>/dev/null; taskkill //F //PID 481 2>/dev/null; rm -f \"/c/Users/dopek/OneDrive/Desktop/Cursor Claude test/dashboard/.next/dev/lock\" 2>/dev/null; echo \"Cleaned up\")",
+      "Bash(taskkill //F //IM node.exe 2>/dev/null; echo \"Killed node processes\")",
+      "Bash(taskkill //F //IM node.exe 2>/dev/null; rm -rf \"/c/Users/dopek/OneDrive/Desktop/Cursor Claude test/dashboard/.next\" && echo \"Cache cleared\")"
+    ]
+  }
+}

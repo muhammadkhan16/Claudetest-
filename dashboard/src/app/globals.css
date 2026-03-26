@@ -1,0 +1,58 @@
+@import "tailwindcss";
+
+@theme inline {
+  --color-background: #F0F4FF;
+  --color-foreground: #0F172A;
+  --color-sidebar-bg: #FFFFFF;
+  --color-sidebar-border: #E2E8F0;
+  --color-primary: #2563EB;
+  --color-primary-hover: #1D4ED8;
+  --font-sans: var(--font-inter);
+}
+
+/* ── Sheet / Drawer animations ─────────────────────────────────────────── */
+@keyframes sheet-slide-in {
+  from { transform: translateX(100%); }
+  to   { transform: translateX(0%);   }
+}
+
+@keyframes sheet-slide-out {
+  from { transform: translateX(0%);   }
+  to   { transform: translateX(100%); }
+}
+
+@keyframes overlay-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes overlay-fade-out {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+
+@layer utilities {
+  .animate-sheet-in  { animation: sheet-slide-in  0.32s cubic-bezier(0.16, 1, 0.3, 1); }
+  .animate-sheet-out { animation: sheet-slide-out 0.24s ease-in forwards; }
+  .animate-overlay-in  { animation: overlay-fade-in  0.2s ease-out; }
+  .animate-overlay-out { animation: overlay-fade-out 0.2s ease-in forwards; }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: #F0F4FF;
+  color: #0F172A;
+  font-family: var(--font-inter), Inter, system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
