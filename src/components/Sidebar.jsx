@@ -4,11 +4,12 @@ const navItems = [
   { label: 'Orders', icon: '📦' },
   { label: 'Inventory', icon: '📋' },
   { label: 'AI Insights', icon: '🤖' },
+  { label: 'PPC Optimizer', icon: '🎯' },
   { label: 'Reports', icon: '📈' },
   { label: 'Settings', icon: '⚙️' },
 ]
 
-export default function Sidebar() {
+export default function Sidebar({ activePage, onNavigate }) {
   return (
     <aside className="w-56 min-h-screen bg-slate-900/80 border-r border-slate-800 flex flex-col">
       <div className="p-5 border-b border-slate-800">
@@ -20,12 +21,13 @@ export default function Sidebar() {
         </div>
       </div>
       <nav className="flex-1 p-3 space-y-0.5">
-        {navItems.map((item, i) => (
+        {navItems.map((item) => (
           <a
             key={item.label}
             href="#"
+            onClick={(e) => { e.preventDefault(); onNavigate(item.label) }}
             className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
-              i === 0
+              activePage === item.label
                 ? 'bg-amber-500/20 text-amber-400'
                 : 'text-slate-400 hover:bg-slate-800/80 hover:text-slate-200'
             }`}
