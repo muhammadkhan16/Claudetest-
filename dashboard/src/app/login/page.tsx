@@ -4,8 +4,10 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff, Lock, User, AlertCircle } from "lucide-react";
 
-const VALID_USERNAME = "SupremeAmazonbrandManager";
-const VALID_PASSWORD = "Dreamteam2026";
+const VALID_CREDENTIALS = [
+  { username: "SupremeAmazonbrandManager", password: "Dreamteam2026" },
+  { username: "clientsuccess", password: "dreamteam" },
+];
 
 export default function LoginPage() {
   const router = useRouter();
@@ -22,7 +24,7 @@ export default function LoginPage() {
 
     await new Promise((r) => setTimeout(r, 700));
 
-    if (username === VALID_USERNAME && password === VALID_PASSWORD) {
+    if (VALID_CREDENTIALS.some((c) => c.username === username && c.password === password)) {
       localStorage.setItem("amzsuite_auth", "true");
       router.push("/dashboard");
     } else {
