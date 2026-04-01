@@ -1,3 +1,54 @@
+const COLOR_PROPS = [
+  "color",
+  "background-color",
+  "border-color",
+  "border-top-color",
+  "border-right-color",
+  "border-bottom-color",
+  "border-left-color",
+  "outline-color",
+  "text-decoration-color",
+  "fill",
+  "stroke",
+] as const;
+
+/**
+ * Inline all computed colours on every descendant as rgb() values so that
+ * html2canvas never has to parse oklch()/lab()/lch() from stylesheets.
+ * Returns a cleanup function that restores the original inline values.
+ */
+function inlineColors(root: HTMLElement): () => void {
+  type Backup = { el: HTMLElement; saved: Partial<Record<string, string>> };
+  const backups: Backup[] = [];
+
+  root.querySelectorAll<HTMLElement>("*").forEach((node) => {
+    const cs = window.getComputedStyle(node);
+    const saved: Partial<Record<string, string>> = {};
+
+    COLOR_PROPS.forEach((prop) => {
+      const computed = cs.getPropertyValue(prop);
+      if (!computed) return;
+      saved[prop] = node.style.getPropertyValue(prop); // may be ""
+      node.style.setProperty(prop, computed);
+    });
+
+    backups.push({ el: node, saved });
+  });
+
+  return () => {
+    backups.forEach(({ el, saved }) => {
+      COLOR_PROPS.forEach((prop) => {
+        const orig = saved[prop];
+        if (orig) {
+          el.style.setProperty(prop, orig);
+        } else {
+          el.style.removeProperty(prop);
+        }
+      });
+    });
+  };
+}
+
 export async function captureToPdf(
   element: HTMLElement,
   opts: {
@@ -9,23 +60,15 @@ export async function captureToPdf(
   const { default: html2canvas } = await import("html2canvas");
   const { default: jsPDF } = await import("jspdf");
 
-  const canvas = await html2canvas(element, {
-    scale: 2,
-    useCORS: true,
-    // html2canvas can't parse lab()/oklch()/lch() — flatten all computed
-    // colours to rgb by inlining them on the clone before rendering.
-    onclone: (_doc, el) => {
-      el.querySelectorAll<HTMLElement>("*").forEach((node) => {
-        const cs = window.getComputedStyle(node);
-        node.style.color = cs.color;
-        node.style.backgroundColor = cs.backgroundColor;
-        node.style.borderColor = cs.borderColor;
-        node.style.outlineColor = cs.outlineColor;
-        node.style.fill = cs.fill;
-        node.style.stroke = cs.stroke;
-      });
-    },
-  });
+  // Flatten oklch/lab colors to rgb BEFORE html2canvas reads the DOM.
+  const restore = inlineColors(element);
+
+  let canvas;
+  try {
+    canvas = await html2canvas(element, { scale: 2, useCORS: true, logging: false });
+  } finally {
+    restore();
+  }
 
   const imgData = canvas.toDataURL("image/png");
   const orientation = opts.orientation ?? "portrait";
