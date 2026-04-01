@@ -12,6 +12,7 @@ import {
   SheetCloseButton, SheetBody, SheetFooter,
 } from "@/components/ui/sheet";
 import PdfDateRangeModal from "@/components/PdfDateRangeModal";
+import { captureToPdf } from "@/lib/pdf";
 
 interface Client {
   name: string;
@@ -208,21 +209,12 @@ export default function ClientAuditPage() {
   async function downloadPdf(dateRange: { label: string; from: Date; to: Date }) {
     if (!reportRef.current) return;
     try {
-      const { default: html2canvas } = await import("html2canvas");
-      const { default: jsPDF } = await import("jspdf");
-      const canvas = await html2canvas(reportRef.current, { scale: 2 });
-      const imgData = canvas.toDataURL("image/png");
-      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      pdf.setFontSize(9);
-      pdf.setTextColor(100);
-      pdf.text(`Client Audit Report | Period: ${dateRange.label}`, 10, 8);
-      const pdfHeight = Math.min((canvas.height * pdfWidth) / canvas.width, pdf.internal.pageSize.getHeight() - 15);
-      pdf.addImage(imgData, "PNG", 0, 12, pdfWidth, pdfHeight);
-      pdf.save(`client-audit-${dateRange.from.toISOString().slice(0, 10)}.pdf`);
-    } catch (e) {
-      alert("PDF generation failed: " + e);
-    }
+      await captureToPdf(reportRef.current, {
+        filename: `client-audit-${dateRange.from.toISOString().slice(0, 10)}.pdf`,
+        orientation: "portrait",
+        header: `Client Audit Report | Period: ${dateRange.label}`,
+      });
+    } catch (e) { alert("PDF failed: " + e); }
   }
 
   async function downloadClientReport(client: Client) {

@@ -7,6 +7,7 @@ import {
   Globe, Languages, Package, Tag,
 } from "lucide-react";
 import PdfDateRangeModal from "@/components/PdfDateRangeModal";
+import { captureToPdf } from "@/lib/pdf";
 
 const MARKETPLACES = [
   { code: "US", label: "United States", flag: "🇺🇸", domain: "amazon.com" },
@@ -113,21 +114,12 @@ export default function ImageGeneratorPage() {
   async function downloadReport(dateRange: { label: string; from: Date; to: Date }) {
     if (!reportRef.current || !product) return;
     try {
-      const { default: html2canvas } = await import("html2canvas");
-      const { default: jsPDF } = await import("jspdf");
-      const canvas = await html2canvas(reportRef.current, { scale: 2, useCORS: true });
-      const imgData = canvas.toDataURL("image/png");
-      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      pdf.setFontSize(9);
-      pdf.setTextColor(100);
-      pdf.text(`Image Enhancement Report — ASIN: ${product.asin} | Period: ${dateRange.label}`, 10, 8);
-      const pdfHeight = Math.min((canvas.height * pdfWidth) / canvas.width, pdf.internal.pageSize.getHeight() - 15);
-      pdf.addImage(imgData, "PNG", 0, 12, pdfWidth, pdfHeight);
-      pdf.save(`image-enhancement-${product.asin}.pdf`);
-    } catch (e) {
-      alert("PDF generation failed: " + e);
-    }
+      await captureToPdf(reportRef.current, {
+        filename: `image-enhancement-${product.asin}.pdf`,
+        orientation: "portrait",
+        header: `Image Enhancement Report — ASIN: ${product.asin} | Period: ${dateRange.label}`,
+      });
+    } catch (e) { alert("PDF failed: " + e); }
   }
 
   function toggleImageSelection(i: number) {

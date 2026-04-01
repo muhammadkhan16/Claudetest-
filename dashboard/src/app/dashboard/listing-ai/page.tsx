@@ -3,6 +3,7 @@
 import { useState, useRef } from "react";
 import { Bot, Sparkles, Copy, CheckCheck, Loader2, Download } from "lucide-react";
 import PdfDateRangeModal from "@/components/PdfDateRangeModal";
+import { captureToPdf } from "@/lib/pdf";
 
 interface ListingResult {
   score: number;
@@ -34,18 +35,11 @@ export default function ListingAIPage() {
   async function downloadPdf(dateRange: { label: string; from: Date; to: Date }) {
     if (!reportRef.current || !result) return;
     try {
-      const { default: html2canvas } = await import("html2canvas");
-      const { default: jsPDF } = await import("jspdf");
-      const canvas = await html2canvas(reportRef.current, { scale: 2 });
-      const imgData = canvas.toDataURL("image/png");
-      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-      pdf.setFontSize(9);
-      pdf.setTextColor(100);
-      pdf.text(`Listing AI Report | Period: ${dateRange.label}`, 10, 8);
-      const pdfHeight = Math.min((canvas.height * pdfWidth) / canvas.width, pdf.internal.pageSize.getHeight() - 15);
-      pdf.addImage(imgData, "PNG", 0, 12, pdfWidth, pdfHeight);
-      pdf.save(`listing-ai-report-${dateRange.from.toISOString().slice(0, 10)}.pdf`);
+      await captureToPdf(reportRef.current, {
+        filename: `listing-ai-report-${dateRange.from.toISOString().slice(0, 10)}.pdf`,
+        orientation: "portrait",
+        header: `Listing AI Report | Period: ${dateRange.label}`,
+      });
     } catch (e) { alert("PDF failed: " + e); }
   }
 
