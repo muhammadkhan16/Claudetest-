@@ -23,7 +23,7 @@ export default function LoginPage() {
     await new Promise((r) => setTimeout(r, 700));
 
     if (username === VALID_USERNAME && password === VALID_PASSWORD) {
-      document.cookie = "amzsuite_auth=authenticated; path=/; max-age=86400";
+      localStorage.setItem("amzsuite_auth", "true");
       router.push("/dashboard");
     } else {
       setError("Invalid username or password. Please try again.");

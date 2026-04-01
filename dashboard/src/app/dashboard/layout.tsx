@@ -1,7 +1,8 @@
 "use client";
 
+import { useEffect } from "react";
+import { useRouter, usePathname } from "next/navigation";
 import Sidebar from "@/components/Sidebar";
-import { usePathname } from "next/navigation";
 
 const pageTitles: Record<string, string> = {
   "/dashboard": "Overview",
@@ -19,7 +20,17 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
   const title = pageTitles[pathname] ?? "Dashboard";
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const auth = localStorage.getItem("amzsuite_auth");
+      if (!auth) {
+        router.replace("/login");
+      }
+    }
+  }, [router]);
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#F0F4FF]">

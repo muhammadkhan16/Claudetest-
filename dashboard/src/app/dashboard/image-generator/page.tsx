@@ -64,7 +64,7 @@ export default function ImageGeneratorPage() {
     setLoading(true);
 
     try {
-      const res = await fetch(`/api/amazon-images?asin=${cleaned}&marketplace=${marketplace}`);
+      const res = await fetch(`https://amazon-dashboard-api.masud-ba7.workers.dev/api/amazon-images?asin=${cleaned}&marketplace=${marketplace}`);
       const data = await res.json();
 
       if (!res.ok) {
@@ -86,7 +86,7 @@ export default function ImageGeneratorPage() {
     setActiveTab("enhancements");
 
     try {
-      const res = await fetch("/api/enhance-images", {
+      const res = await fetch("https://amazon-dashboard-api.masud-ba7.workers.dev/api/enhance-images", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

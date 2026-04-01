@@ -26,15 +26,15 @@ jobs:
         working-directory: dashboard
         run: npm ci
 
-      - name: Build with OpenNext (Cloudflare adapter)
+      - name: Build Next.js (static export)
         working-directory: dashboard
-        run: npx @opennextjs/cloudflare build
+        run: npm run build
         env:
           NODE_ENV: production
 
       - name: Deploy to Cloudflare Pages
         working-directory: dashboard
-        run: npx wrangler pages deploy .open-next --project-name amazon-dashboard --branch main
+        run: npx wrangler pages deploy out --project-name amazon-dashboard --branch main
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

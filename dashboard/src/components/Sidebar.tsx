@@ -31,7 +31,7 @@ export default function Sidebar() {
   const router = useRouter();
 
   function handleLogout() {
-    document.cookie = "amzsuite_auth=; path=/; max-age=0";
+    localStorage.removeItem("amzsuite_auth");
     router.push("/login");
   }
 
