@@ -3,7 +3,11 @@
     "allow": [
       "Bash(taskkill //F //PID 23632 2>/dev/null; taskkill //F //PID 481 2>/dev/null; rm -f \"/c/Users/dopek/OneDrive/Desktop/Cursor Claude test/dashboard/.next/dev/lock\" 2>/dev/null; echo \"Cleaned up\")",
       "Bash(taskkill //F //IM node.exe 2>/dev/null; echo \"Killed node processes\")",
-      "Bash(taskkill //F //IM node.exe 2>/dev/null; rm -rf \"/c/Users/dopek/OneDrive/Desktop/Cursor Claude test/dashboard/.next\" && echo \"Cache cleared\")"
+      "Bash(taskkill //F //IM node.exe 2>/dev/null; rm -rf \"/c/Users/dopek/OneDrive/Desktop/Cursor Claude test/dashboard/.next\" && echo \"Cache cleared\")",
+      "Bash(taskkill //F //IM node.exe 2>/dev/null; echo \"killed\")",
+      "Bash(cd \"/c/Users/dopek/OneDrive/Desktop/Cursor Claude test/dashboard\" && npm install 2>&1 | tail -5)",
+      "Bash(npm run:*)",
+      "Bash(node -e \"const l = require\\(''lucide-react''\\); console.log\\(Object.keys\\(l\\).filter\\(k => k.toLowerCase\\(\\).includes\\(''image''\\) || k === ''Link2'' || k === ''LogOut''\\)\\)\")"
     ]
   }
 }

@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import {
   DollarSign, TrendingUp, BarChart3,
   ArrowUpRight, ArrowDownRight, ChevronUp, ChevronDown,
   ChevronsUpDown, Sparkles, Copy, CheckCheck, Zap,
-  AlertTriangle, Target, Clock,
+  AlertTriangle, Target, Clock, Download,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -232,6 +232,22 @@ export default function ProfitCenterPage() {
   const [sortDir, setSortDir]      = useState<"asc"|"desc">("desc");
   const [selectedSku, setSelected] = useState<SkuRow | null>(null);
   const [copied, setCopied]        = useState<string | null>(null);
+  const reportRef = useRef<HTMLDivElement>(null);
+
+  async function downloadPdf() {
+    if (!reportRef.current) return;
+    try {
+      const { default: html2canvas } = await import("html2canvas");
+      const { default: jsPDF } = await import("jspdf");
+      const canvas = await html2canvas(reportRef.current, { scale: 2 });
+      const imgData = canvas.toDataURL("image/png");
+      const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+      pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
+      pdf.save(`profit-center-${new Date().toISOString().slice(0, 10)}.pdf`);
+    } catch (e) { alert("PDF failed: " + e); }
+  }
 
   const sorted = useMemo(() => {
     return [...RAW_SKUS].sort((a, b) => {
@@ -257,9 +273,14 @@ export default function ProfitCenterPage() {
     <div className="space-y-6">
 
       {/* Header */}
-      <div>
-        <h2 className="text-2xl font-bold text-[#0F172A]">Profit Command Center</h2>
-        <p className="text-sm text-[#94A3B8] mt-1">Margin analytics, cost breakdown, and AI optimization per SKU</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold text-[#0F172A]">Profit Command Center</h2>
+          <p className="text-sm text-[#94A3B8] mt-1">Margin analytics, cost breakdown, and AI optimization per SKU</p>
+        </div>
+        <button onClick={downloadPdf} className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-[#374151] border border-[#E2E8F0] rounded-lg hover:bg-[#F8FAFC] transition-colors">
+          <Download size={14} />Export PDF
+        </button>
       </div>
 
       {/* KPI Cards */}
@@ -286,7 +307,7 @@ export default function ProfitCenterPage() {
       </div>
 
       {/* Profit Table */}
-      <div className="bg-white rounded-xl border border-[#E2E8F0] overflow-hidden shadow-sm">
+      <div ref={reportRef} className="bg-white rounded-xl border border-[#E2E8F0] overflow-hidden shadow-sm">
         <div className="flex items-center justify-between px-6 py-4 border-b border-[#E2E8F0]">
           <div>
             <h3 className="text-sm font-semibold text-[#0F172A]">SKU Profitability Breakdown</h3>

@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import {
   DollarSign, ShoppingCart, TrendingUp, Users,
-  ArrowUpRight, ArrowDownRight, Package, Zap,
+  ArrowUpRight, ArrowDownRight, Package, Zap, Download,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -142,6 +142,22 @@ const RANGE_SLICE: Record<Range, number> = { "7D": 7, "14D": 14, "30D": 30 };
 
 export default function OverviewPage() {
   const [range, setRange] = useState<Range>("30D");
+  const reportRef = useRef<HTMLDivElement>(null);
+
+  async function downloadPdf() {
+    if (!reportRef.current) return;
+    try {
+      const { default: html2canvas } = await import("html2canvas");
+      const { default: jsPDF } = await import("jspdf");
+      const canvas = await html2canvas(reportRef.current, { scale: 2 });
+      const imgData = canvas.toDataURL("image/png");
+      const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+      pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
+      pdf.save(`overview-report-${new Date().toISOString().slice(0, 10)}.pdf`);
+    } catch (e) { alert("PDF failed: " + e); }
+  }
 
   const slice    = DAILY.slice(-RANGE_SLICE[range]);
   const revenues = slice.map((d) => d.revenue);
@@ -173,12 +189,22 @@ export default function OverviewPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold text-[#0F172A]">Overview</h2>
-        <p className="text-sm text-[#94A3B8] mt-1">Your key metrics at a glance — last {range}</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold text-[#0F172A]">Overview</h2>
+          <p className="text-sm text-[#94A3B8] mt-1">Your key metrics at a glance — last {range}</p>
+        </div>
+        <button
+          onClick={downloadPdf}
+          className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-[#374151] border border-[#E2E8F0] rounded-lg hover:bg-[#F8FAFC] transition-colors"
+        >
+          <Download size={14} />
+          Export PDF
+        </button>
       </div>
 
       {/* KPI Cards */}
+      <div ref={reportRef} className="space-y-6">
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
         <KpiCard label="Total Revenue" value="$124.6k" change="+12.5%" up sub="vs $110.8k last period"
           icon={DollarSign} iconBg="#EFF6FF" iconColor="#2563EB" sparkData={revenueWeekly} sparkColor="#2563EB" />
@@ -362,6 +388,7 @@ export default function OverviewPage() {
             </li>
           ))}
         </ul>
+      </div>
       </div>
     </div>
   );

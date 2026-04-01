@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Bot, Sparkles, Copy, CheckCheck, Loader2 } from "lucide-react";
+import { useState, useRef } from "react";
+import { Bot, Sparkles, Copy, CheckCheck, Loader2, Download } from "lucide-react";
 
 interface ListingResult {
   score: number;
@@ -27,6 +27,22 @@ export default function ListingAIPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
+  const reportRef = useRef<HTMLDivElement>(null);
+
+  async function downloadPdf() {
+    if (!reportRef.current || !result) return;
+    try {
+      const { default: html2canvas } = await import("html2canvas");
+      const { default: jsPDF } = await import("jspdf");
+      const canvas = await html2canvas(reportRef.current, { scale: 2 });
+      const imgData = canvas.toDataURL("image/png");
+      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+      pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
+      pdf.save(`listing-ai-report-${new Date().toISOString().slice(0, 10)}.pdf`);
+    } catch (e) { alert("PDF failed: " + e); }
+  }
 
   function updateBullet(index: number, value: string) {
     const updated = [...form.bulletPoints];
@@ -168,7 +184,7 @@ export default function ListingAIPage() {
 
       {/* Results */}
       {result && (
-        <div className="space-y-4">
+        <div className="space-y-4" ref={reportRef}>
           {/* Score bar */}
           <div className="bg-white rounded-xl border border-[#E2E8F0] p-5 shadow-sm flex items-center gap-6">
             <div className="text-center">
@@ -184,6 +200,13 @@ export default function ListingAIPage() {
                 Based on keyword integration and copy improvements
               </p>
             </div>
+            <button
+              onClick={downloadPdf}
+              className="ml-auto flex items-center gap-2 px-4 py-2 text-sm font-semibold text-[#374151] border border-[#E2E8F0] rounded-lg hover:bg-[#F8FAFC] transition-colors"
+            >
+              <Download size={14} />
+              Export PDF
+            </button>
           </div>
 
           {/* Title */}
