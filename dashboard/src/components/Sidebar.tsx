@@ -11,6 +11,7 @@ import {
   Image as ImageIcon,
   Link2,
   LogOut,
+  Upload,
 } from "lucide-react";
 
 const mainNav = [
@@ -20,6 +21,7 @@ const mainNav = [
   { label: "Listing AI",    href: "/dashboard/listing-ai",       icon: Bot             },
   { label: "Client Audit",  href: "/dashboard/client-audit",     icon: ClipboardList   },
   { label: "Listing Images Analyzer", href: "/dashboard/image-generator", icon: ImageIcon },
+  { label: "Upload Reports", href: "/dashboard/data-upload",     icon: Upload          },
 ];
 
 const connectNav = [

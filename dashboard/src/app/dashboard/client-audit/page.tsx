@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
+import Link from "next/link";
 import {
   ClipboardList, CheckCircle2, XCircle, AlertTriangle, User,
-  Search, Download, Plus, RefreshCw, Calendar, TrendingUp,
-  TrendingDown, Target, ShoppingBag, AlertCircle, X,
-  BarChart2, FileText, Filter,
+  Search, Download, RefreshCw, Target, ShoppingBag, AlertCircle,
+  BarChart2, FileText, Filter, TrendingUp, Package,
 } from "lucide-react";
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle,
@@ -13,158 +13,16 @@ import {
 } from "@/components/ui/sheet";
 import PdfDateRangeModal from "@/components/PdfDateRangeModal";
 import { captureToPdf } from "@/lib/pdf";
+import { clientsApi } from "@/lib/api";
+import type { ClientAudit } from "@/lib/types";
 
-interface Client {
-  name: string;
-  account: string;
-  score: number;
-  issues: number;
-  status: "good" | "warning" | "critical";
-  lastAudit: string;
-  revenue: string;
-  acos: string;
-  orders: number;
-  category: string;
-  checks: { check: string; passed: boolean; detail?: string }[];
-  recommendations: string[];
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+function getStatus(score: number): "good" | "warning" | "critical" {
+  if (score >= 80) return "good";
+  if (score >= 60) return "warning";
+  return "critical";
 }
-
-const clients: Client[] = [
-  {
-    name: "TechGadgets LLC",
-    account: "A1B2C3D4",
-    score: 87,
-    issues: 2,
-    status: "good",
-    lastAudit: "Mar 8, 2026",
-    revenue: "$142,500",
-    acos: "14.2%",
-    orders: 1842,
-    category: "Electronics",
-    checks: [
-      { check: "Listing completeness (title, bullets, images)", passed: true },
-      { check: "A+ Content / Brand Story active", passed: true },
-      { check: "Price competitiveness within 5% of Buy Box", passed: false, detail: "3 SKUs are 8–12% above competitors" },
-      { check: "Review velocity ≥ 1 review/week", passed: true },
-      { check: "Inventory health — no stockouts in 30 days", passed: true },
-      { check: "PPC ACoS below category benchmark", passed: true },
-      { check: "Negative keyword list updated this month", passed: false, detail: "Last updated 47 days ago" },
-    ],
-    recommendations: [
-      "Reprice 3 SKUs: reduce by 5–8% to recapture Buy Box",
-      "Update negative keyword lists — 47 days overdue",
-      "Consider Sponsored Brand video campaigns for top ASINs",
-    ],
-  },
-  {
-    name: "HomeDecor Co",
-    account: "E5F6G7H8",
-    score: 61,
-    issues: 7,
-    status: "warning",
-    lastAudit: "Mar 5, 2026",
-    revenue: "$78,200",
-    acos: "28.7%",
-    orders: 934,
-    category: "Home & Garden",
-    checks: [
-      { check: "Listing completeness (title, bullets, images)", passed: false, detail: "4 listings missing 2+ images" },
-      { check: "A+ Content / Brand Story active", passed: false, detail: "Only 2/15 ASINs have A+ Content" },
-      { check: "Price competitiveness within 5% of Buy Box", passed: false, detail: "7 SKUs lost Buy Box" },
-      { check: "Review velocity ≥ 1 review/week", passed: true },
-      { check: "Inventory health — no stockouts in 30 days", passed: false, detail: "2 top sellers out of stock" },
-      { check: "PPC ACoS below category benchmark", passed: false, detail: "ACoS 28.7% vs 22% benchmark" },
-      { check: "Negative keyword list updated this month", passed: false, detail: "Never updated since launch" },
-    ],
-    recommendations: [
-      "Urgent: Restock 2 OOS top sellers to prevent ranking loss",
-      "Add A+ Content to top 5 ASINs — avg +15% CVR lift",
-      "Pause 3 bleeding PPC campaigns immediately",
-      "Complete listing images for 4 incomplete products",
-      "Reduce bids on 12 high-spend zero-order keywords",
-    ],
-  },
-  {
-    name: "SportsPro Inc",
-    account: "I9J0K1L2",
-    score: 94,
-    issues: 1,
-    status: "good",
-    lastAudit: "Mar 9, 2026",
-    revenue: "$315,800",
-    acos: "11.3%",
-    orders: 4210,
-    category: "Sports & Outdoors",
-    checks: [
-      { check: "Listing completeness (title, bullets, images)", passed: true },
-      { check: "A+ Content / Brand Story active", passed: true },
-      { check: "Price competitiveness within 5% of Buy Box", passed: true },
-      { check: "Review velocity ≥ 1 review/week", passed: true },
-      { check: "Inventory health — no stockouts in 30 days", passed: true },
-      { check: "PPC ACoS below category benchmark", passed: true },
-      { check: "Negative keyword list updated this month", passed: false, detail: "Last updated 32 days ago" },
-    ],
-    recommendations: [
-      "Scale Sponsored Brand campaigns — strong brand equity",
-      "Update negative keyword lists (minor, low priority)",
-    ],
-  },
-  {
-    name: "BeautyBox Brand",
-    account: "M3N4O5P6",
-    score: 44,
-    issues: 12,
-    status: "critical",
-    lastAudit: "Feb 28, 2026",
-    revenue: "$34,100",
-    acos: "52.4%",
-    orders: 312,
-    category: "Beauty",
-    checks: [
-      { check: "Listing completeness (title, bullets, images)", passed: false, detail: "All 8 ASINs need image updates" },
-      { check: "A+ Content / Brand Story active", passed: false, detail: "No A+ Content on any listing" },
-      { check: "Price competitiveness within 5% of Buy Box", passed: false, detail: "All SKUs significantly overpriced" },
-      { check: "Review velocity ≥ 1 review/week", passed: false, detail: "0.2 reviews/week average" },
-      { check: "Inventory health — no stockouts in 30 days", passed: false, detail: "3 ASINs out of stock >14 days" },
-      { check: "PPC ACoS below category benchmark", passed: false, detail: "ACoS 52% vs 28% benchmark" },
-      { check: "Negative keyword list updated this month", passed: false, detail: "No negative keywords configured" },
-    ],
-    recommendations: [
-      "CRITICAL: Pause all PPC immediately — ACoS 52% is unsustainable",
-      "Restock 3 OOS ASINs — losing organic rank daily",
-      "Complete full listing overhaul before re-launching ads",
-      "Request reviews via Request a Review tool for all orders",
-      "Consider pricing audit — all SKUs priced above market",
-      "Enroll in Brand Registry to access A+ Content",
-    ],
-  },
-  {
-    name: "FoodFresh Store",
-    account: "Q7R8S9T0",
-    score: 78,
-    issues: 4,
-    status: "warning",
-    lastAudit: "Mar 7, 2026",
-    revenue: "$91,400",
-    acos: "19.8%",
-    orders: 2847,
-    category: "Grocery",
-    checks: [
-      { check: "Listing completeness (title, bullets, images)", passed: true },
-      { check: "A+ Content / Brand Story active", passed: true },
-      { check: "Price competitiveness within 5% of Buy Box", passed: false, detail: "2 SKUs losing Buy Box to competitors" },
-      { check: "Review velocity ≥ 1 review/week", passed: true },
-      { check: "Inventory health — no stockouts in 30 days", passed: false, detail: "Seasonal item ran OOS 8 days" },
-      { check: "PPC ACoS below category benchmark", passed: false, detail: "ACoS slightly above 18% benchmark" },
-      { check: "Negative keyword list updated this month", passed: false, detail: "Updated 28 days ago" },
-    ],
-    recommendations: [
-      "Reprice 2 SKUs to recapture Buy Box",
-      "Increase inventory buffer for seasonal items",
-      "Optimize PPC bids to bring ACoS to 18% target",
-    ],
-  },
-];
 
 const statusConfig = {
   good:     { icon: CheckCircle2,  color: "text-emerald-700", bg: "bg-emerald-50 border border-emerald-200", label: "Good",     barColor: "#10B981" },
@@ -172,35 +30,149 @@ const statusConfig = {
   critical: { icon: XCircle,       color: "text-red-700",     bg: "bg-red-50    border border-red-200",      label: "Critical", barColor: "#EF4444" },
 };
 
-const scoreColor = (score: number) => {
+function scoreColor(score: number) {
   if (score >= 80) return "text-emerald-600";
   if (score >= 60) return "text-amber-600";
   return "text-red-600";
-};
+}
+
+function acosColor(acos: number) {
+  if (acos < 15) return "text-emerald-600";
+  if (acos <= 25) return "text-amber-600";
+  return "text-red-600";
+}
+
+function fmtCurrency(n: number) {
+  return "$" + n.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+}
+
+function buildChecks(c: ClientAudit) {
+  return [
+    {
+      check: "PPC ACoS below 25%",
+      passed: c.acos < 25,
+      detail: c.acos >= 25 ? `Current ACoS is ${c.acos.toFixed(1)}%` : `ACoS ${c.acos.toFixed(1)}% — within target`,
+    },
+    {
+      check: "Revenue generating (last 30d)",
+      passed: c.revenue_30d > 0,
+      detail: c.revenue_30d === 0 ? "No revenue recorded — upload Business Report CSV" : `${fmtCurrency(c.revenue_30d)} earned`,
+    },
+    {
+      check: "Active products listed",
+      passed: c.active_products > 0,
+      detail: c.active_products === 0 ? "No active products found" : `${c.active_products} active product${c.active_products !== 1 ? "s" : ""}`,
+    },
+    {
+      check: "Orders placed (last 30d)",
+      passed: c.orders_30d > 0,
+      detail: c.orders_30d === 0 ? "No orders recorded — check listing health" : `${c.orders_30d.toLocaleString()} orders`,
+    },
+  ];
+}
+
+function buildRecommendations(c: ClientAudit): string[] {
+  const recs: string[] = [];
+  if (c.acos > 30) recs.push("CRITICAL: Review and reduce PPC bids — ACoS exceeds 30%");
+  else if (c.acos > 25) recs.push("Optimise PPC campaigns to bring ACoS below 25%");
+  else if (c.acos > 0 && c.acos < 10) recs.push("ACoS is very low — consider scaling ad spend to capture more share");
+  if (c.revenue_30d === 0) recs.push("Upload Business Report CSV to see revenue data");
+  if (c.orders_30d === 0) recs.push("Investigate listing health — no orders in the past 30 days");
+  if (c.active_products === 0) recs.push("Ensure products are listed and active in Seller Central");
+  if (c.ad_spend_30d === 0) recs.push("No ad spend detected — consider launching PPC campaigns to drive traffic");
+  if (c.health_score < 60) recs.push("Schedule a full account review — health score is in the critical range");
+  else if (c.health_score < 80) recs.push("Address flagged issues above to move health score above 80");
+  if (recs.length === 0) recs.push("Account is performing well — continue monitoring weekly");
+  return recs;
+}
+
+// ── Skeleton components ───────────────────────────────────────────────────────
+
+function SkeletonCard() {
+  return (
+    <div className="bg-white rounded-xl border border-[#E2E8F0] p-5 shadow-sm animate-pulse">
+      <div className="flex items-start justify-between mb-3">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-full bg-[#F1F5F9]" />
+          <div>
+            <div className="h-3.5 w-32 bg-[#F1F5F9] rounded mb-1.5" />
+            <div className="h-2.5 w-20 bg-[#F1F5F9] rounded" />
+          </div>
+        </div>
+        <div className="h-7 w-10 bg-[#F1F5F9] rounded" />
+      </div>
+      <div className="flex gap-2 mb-3">
+        <div className="h-5 w-20 bg-[#F1F5F9] rounded" />
+        <div className="h-5 w-24 bg-[#F1F5F9] rounded" />
+      </div>
+      <div className="h-1.5 bg-[#F1F5F9] rounded-full" />
+    </div>
+  );
+}
+
+function SkeletonKpi() {
+  return (
+    <div className="bg-white rounded-xl border border-[#E2E8F0] p-4 shadow-sm animate-pulse">
+      <div className="flex items-center justify-between mb-2">
+        <div className="h-3 w-24 bg-[#F1F5F9] rounded" />
+        <div className="w-8 h-8 rounded-lg bg-[#F1F5F9]" />
+      </div>
+      <div className="h-7 w-16 bg-[#F1F5F9] rounded" />
+    </div>
+  );
+}
+
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 type FilterStatus = "all" | "good" | "warning" | "critical";
 
+// ── Page ──────────────────────────────────────────────────────────────────────
+
 export default function ClientAuditPage() {
+  const [clients, setClients] = useState<ClientAudit[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState<FilterStatus>("all");
-  const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+  const [selectedClient, setSelectedClient] = useState<ClientAudit | null>(null);
   const [runningAudit, setRunningAudit] = useState(false);
   const [auditDone, setAuditDone] = useState(false);
   const [pdfModalOpen, setPdfModalOpen] = useState(false);
   const reportRef = useRef<HTMLDivElement>(null);
 
+  async function fetchClients() {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await clientsApi.getAudit();
+      setClients(data);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to load client data");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => { fetchClients(); }, []);
+
   const filtered = clients.filter((c) => {
     const matchSearch =
-      c.name.toLowerCase().includes(search.toLowerCase()) ||
-      c.account.toLowerCase().includes(search.toLowerCase()) ||
-      c.category.toLowerCase().includes(search.toLowerCase());
-    const matchStatus = filterStatus === "all" || c.status === filterStatus;
+      c.client_name.toLowerCase().includes(search.toLowerCase()) ||
+      c.marketplace.toLowerCase().includes(search.toLowerCase());
+    const matchStatus = filterStatus === "all" || getStatus(c.health_score) === filterStatus;
     return matchSearch && matchStatus;
   });
 
+  // KPI aggregates
+  const totalClients = clients.length;
+  const avgHealthScore = clients.length
+    ? Math.round(clients.reduce((s, c) => s + c.health_score, 0) / clients.length)
+    : 0;
+  const atRiskCount = clients.filter((c) => c.health_score < 60).length;
+
   async function runAudit() {
     setRunningAudit(true);
-    await new Promise((r) => setTimeout(r, 2200));
+    await fetchClients();
     setRunningAudit(false);
     setAuditDone(true);
     setTimeout(() => setAuditDone(false), 3000);
@@ -217,13 +189,16 @@ export default function ClientAuditPage() {
     } catch (e) { alert("PDF failed: " + e); }
   }
 
-  async function downloadClientReport(client: Client) {
+  async function downloadClientReport(client: ClientAudit) {
+    const checks = buildChecks(client);
+    const recommendations = buildRecommendations(client);
+    const status = getStatus(client.health_score);
+
     try {
       const { default: jsPDF } = await import("jspdf");
       const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
       const pageWidth = pdf.internal.pageSize.getWidth();
 
-      // Header
       pdf.setFillColor(37, 99, 235);
       pdf.rect(0, 0, pageWidth, 40, "F");
       pdf.setTextColor(255, 255, 255);
@@ -236,27 +211,28 @@ export default function ClientAuditPage() {
 
       let y = 55;
 
-      // Client Info
       pdf.setTextColor(0, 0, 0);
       pdf.setFontSize(16);
       pdf.setFont("helvetica", "bold");
-      pdf.text(client.name, 15, y);
+      pdf.text(client.client_name, 15, y);
       y += 8;
       pdf.setFontSize(10);
       pdf.setFont("helvetica", "normal");
       pdf.setTextColor(100, 116, 139);
-      pdf.text(`Account: ${client.account}  |  Category: ${client.category}  |  Last Audit: ${client.lastAudit}`, 15, y);
+      pdf.text(`Marketplace: ${client.marketplace}  |  Health Score: ${client.health_score}/100  |  Status: ${status.toUpperCase()}`, 15, y);
       y += 12;
 
-      // Score
-      const scoreNum = client.score;
+      const scoreNum = client.health_score;
       pdf.setFontSize(14);
       pdf.setFont("helvetica", "bold");
-      pdf.setTextColor(scoreNum >= 80 ? 16 : scoreNum >= 60 ? 245 : 239, scoreNum >= 80 ? 185 : scoreNum >= 60 ? 158 : 68, scoreNum >= 80 ? 129 : scoreNum >= 60 ? 11 : 68);
-      pdf.text(`Health Score: ${client.score}/100 — ${client.status.toUpperCase()}`, 15, y);
+      pdf.setTextColor(
+        scoreNum >= 80 ? 16 : scoreNum >= 60 ? 245 : 239,
+        scoreNum >= 80 ? 185 : scoreNum >= 60 ? 158 : 68,
+        scoreNum >= 80 ? 129 : scoreNum >= 60 ? 11 : 68,
+      );
+      pdf.text(`Health Score: ${client.health_score}/100`, 15, y);
       y += 12;
 
-      // Metrics
       pdf.setTextColor(0, 0, 0);
       pdf.setFontSize(11);
       pdf.setFont("helvetica", "bold");
@@ -264,20 +240,23 @@ export default function ClientAuditPage() {
       y += 7;
       pdf.setFont("helvetica", "normal");
       pdf.setFontSize(10);
-      pdf.text(`Revenue: ${client.revenue}  |  ACoS: ${client.acos}  |  Orders: ${client.orders.toLocaleString()}`, 15, y);
+      pdf.text(
+        `Revenue (30d): ${fmtCurrency(client.revenue_30d)}  |  ACoS: ${client.acos.toFixed(1)}%  |  Orders: ${client.orders_30d.toLocaleString()}  |  Active Products: ${client.active_products}`,
+        15,
+        y,
+      );
       y += 14;
 
-      // Checklist
       pdf.setFont("helvetica", "bold");
       pdf.setFontSize(11);
-      pdf.text("Audit Checklist", 15, y);
+      pdf.text("Health Checks", 15, y);
       y += 7;
       pdf.setFont("helvetica", "normal");
       pdf.setFontSize(9);
-      for (const item of client.checks) {
+      for (const item of checks) {
         pdf.setTextColor(item.passed ? 16 : 239, item.passed ? 185 : 68, item.passed ? 129 : 68);
         pdf.text(`${item.passed ? "✓" : "✗"} ${item.check}`, 18, y);
-        if (!item.passed && item.detail) {
+        if (item.detail) {
           pdf.setTextColor(148, 163, 184);
           pdf.text(`   → ${item.detail}`, 22, y + 4);
           y += 4;
@@ -286,29 +265,26 @@ export default function ClientAuditPage() {
       }
       y += 5;
 
-      // Recommendations
       pdf.setTextColor(0, 0, 0);
       pdf.setFont("helvetica", "bold");
       pdf.setFontSize(11);
-      pdf.text("Recommendations", 15, y);
+      pdf.text("Recommended Actions", 15, y);
       y += 7;
       pdf.setFont("helvetica", "normal");
       pdf.setFontSize(9);
       pdf.setTextColor(30, 64, 175);
-      client.recommendations.forEach((rec, i) => {
+      recommendations.forEach((rec, i) => {
         pdf.text(`${i + 1}. ${rec}`, 18, y);
         y += 7;
       });
 
-      pdf.save(`audit-report-${client.account}.pdf`);
+      pdf.save(`audit-report-${client.client_id}.pdf`);
     } catch (e) {
       alert("PDF generation failed: " + e);
     }
   }
 
-  const totalIssues = clients.reduce((sum, c) => sum + c.issues, 0);
-  const avgScore = Math.round(clients.reduce((sum, c) => sum + c.score, 0) / clients.length);
-  const criticalCount = clients.filter((c) => c.status === "critical").length;
+  // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
     <div className="space-y-6">
@@ -346,23 +322,48 @@ export default function ClientAuditPage() {
       </div>
 
       {/* KPI Row */}
-      <div className="grid grid-cols-4 gap-4">
-        {[
-          { label: "Total Clients", value: clients.length, icon: User, color: "#2563EB", bg: "#EFF6FF" },
-          { label: "Avg Health Score", value: `${avgScore}/100`, icon: BarChart2, color: "#10B981", bg: "#ECFDF5" },
-          { label: "Total Issues", value: totalIssues, icon: AlertCircle, color: "#F59E0B", bg: "#FFFBEB" },
-          { label: "Critical Clients", value: criticalCount, icon: XCircle, color: "#EF4444", bg: "#FEF2F2" },
-        ].map(({ label, value, icon: Icon, color, bg }) => (
-          <div key={label} className="bg-white rounded-xl border border-[#E2E8F0] p-4 shadow-sm">
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-xs text-[#94A3B8] font-medium">{label}</p>
-              <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: bg }}>
-                <Icon size={15} style={{ color }} />
+      <div className="grid grid-cols-3 gap-4">
+        {loading ? (
+          <>
+            <SkeletonKpi />
+            <SkeletonKpi />
+            <SkeletonKpi />
+          </>
+        ) : (
+          <>
+            <div className="bg-white rounded-xl border border-[#E2E8F0] p-4 shadow-sm">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs text-[#94A3B8] font-medium">Total Clients</p>
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-[#EFF6FF]">
+                  <User size={15} style={{ color: "#2563EB" }} />
+                </div>
               </div>
+              <p className="text-2xl font-bold text-[#0F172A]">{totalClients}</p>
             </div>
-            <p className="text-2xl font-bold text-[#0F172A]">{value}</p>
-          </div>
-        ))}
+
+            <div className="bg-white rounded-xl border border-[#E2E8F0] p-4 shadow-sm">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs text-[#94A3B8] font-medium">Avg Health Score</p>
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-[#ECFDF5]">
+                  <BarChart2 size={15} style={{ color: "#10B981" }} />
+                </div>
+              </div>
+              <p className={`text-2xl font-bold ${scoreColor(avgHealthScore)}`}>
+                {totalClients ? `${avgHealthScore}/100` : "—"}
+              </p>
+            </div>
+
+            <div className="bg-white rounded-xl border border-[#E2E8F0] p-4 shadow-sm">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs text-[#94A3B8] font-medium">At Risk</p>
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-[#FEF2F2]">
+                  <AlertCircle size={15} style={{ color: "#EF4444" }} />
+                </div>
+              </div>
+              <p className="text-2xl font-bold text-red-600">{atRiskCount}</p>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Filters */}
@@ -393,135 +394,147 @@ export default function ClientAuditPage() {
             </button>
           ))}
         </div>
-        <button
-          className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-[#64748B] border border-[#E2E8F0] rounded-lg hover:bg-[#F8FAFC] transition-colors"
-        >
-          <Plus size={14} />
-          Add Client
-        </button>
       </div>
 
-      {/* Client Cards */}
+      {/* Error state */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-xl px-5 py-4 flex items-center gap-3">
+          <AlertCircle size={16} className="text-red-500 shrink-0" />
+          <p className="text-sm text-red-700">{error}</p>
+          <button
+            onClick={fetchClients}
+            className="ml-auto text-xs font-semibold text-red-600 hover:text-red-800 underline underline-offset-2"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
+      {/* Client Cards / Skeleton / Empty */}
       <div ref={reportRef} className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-        {filtered.map((client) => {
-          const s = statusConfig[client.status];
-          const Icon = s.icon;
-          return (
-            <div
-              key={client.account}
-              onClick={() => setSelectedClient(client)}
-              className="bg-white rounded-xl border border-[#E2E8F0] p-5 shadow-sm hover:shadow-md hover:border-[#BFDBFE] transition-all cursor-pointer group"
+        {loading ? (
+          Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)
+        ) : !error && clients.length === 0 ? (
+          /* Empty state — no clients at all */
+          <div className="col-span-3 bg-white rounded-xl border border-[#E2E8F0] p-16 text-center shadow-sm">
+            <ClipboardList size={32} className="text-[#CBD5E1] mx-auto mb-4" />
+            <p className="text-base font-semibold text-[#64748B] mb-1">No client data yet</p>
+            <p className="text-sm text-[#94A3B8] mb-5">
+              Upload client reports to populate the audit dashboard
+            </p>
+            <Link
+              href="/dashboard/data-upload"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-semibold text-white transition-all hover:opacity-90"
+              style={{ backgroundColor: "#2563EB" }}
             >
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-full bg-[#EFF6FF] border border-[#BFDBFE] flex items-center justify-center shrink-0">
-                    <User size={15} className="text-[#2563EB]" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-[#0F172A]">{client.name}</p>
-                    <p className="text-xs text-[#94A3B8] font-mono">{client.account}</p>
-                  </div>
-                </div>
-                <span className={`text-2xl font-bold tabular-nums ${scoreColor(client.score)}`}>
-                  {client.score}
-                </span>
-              </div>
-
-              {/* Category + Revenue Row */}
-              <div className="flex items-center gap-3 mb-3 text-xs text-[#64748B]">
-                <span className="bg-[#F1F5F9] px-2 py-0.5 rounded font-medium">{client.category}</span>
-                <span>{client.revenue}</span>
-                <span className="ml-auto font-mono">{client.acos} ACoS</span>
-              </div>
-
-              <div className="flex items-center justify-between">
-                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${s.bg} ${s.color}`}>
-                  <Icon size={11} />
-                  {s.label}
-                </span>
-                <div className="text-right">
-                  <p className="text-xs text-[#64748B]">{client.issues} issue{client.issues !== 1 ? "s" : ""}</p>
-                  <p className="text-xs text-[#94A3B8]">
-                    <Calendar size={10} className="inline mr-0.5" />
-                    {client.lastAudit}
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-3 h-1.5 bg-[#F1F5F9] rounded-full overflow-hidden">
-                <div
-                  className="h-full rounded-full transition-all"
-                  style={{ width: `${client.score}%`, backgroundColor: s.barColor }}
-                />
-              </div>
-
-              <div className="mt-3 pt-3 border-t border-[#F1F5F9] flex items-center justify-between opacity-0 group-hover:opacity-100 transition-opacity">
-                <span className="text-xs text-[#2563EB] font-medium">View full audit →</span>
-                <span className="text-xs text-[#94A3B8]">{client.orders.toLocaleString()} orders</span>
-              </div>
-            </div>
-          );
-        })}
-
-        {filtered.length === 0 && (
+              <Download size={14} />
+              Upload client reports
+            </Link>
+          </div>
+        ) : filtered.length === 0 ? (
+          /* No results for current search/filter */
           <div className="col-span-3 bg-white rounded-xl border border-[#E2E8F0] p-12 text-center shadow-sm">
             <Search size={24} className="text-[#CBD5E1] mx-auto mb-3" />
             <p className="text-sm font-medium text-[#64748B]">No clients match your search</p>
             <p className="text-xs text-[#94A3B8] mt-1">Try a different search term or filter</p>
           </div>
-        )}
-      </div>
+        ) : (
+          filtered.map((client) => {
+            const status = getStatus(client.health_score);
+            const s = statusConfig[status];
+            const Icon = s.icon;
+            const acosNum = client.acos;
 
-      {/* Standard Checklist (overview) */}
-      <div className="bg-white rounded-xl border border-[#E2E8F0] overflow-hidden shadow-sm">
-        <div className="px-6 py-4 border-b border-[#E2E8F0] flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <ClipboardList size={15} style={{ color: "#2563EB" }} />
-            <h3 className="text-sm font-semibold text-[#0F172A]">Standard Audit Checklist</h3>
-          </div>
-          <span className="text-xs text-[#94A3B8]">Applies to all clients</span>
-        </div>
-        <ul className="divide-y divide-[#F1F5F9]">
-          {clients[0].checks.map(({ check, passed }) => (
-            <li key={check} className="flex items-center gap-4 px-6 py-3 hover:bg-[#F8FAFC] transition-colors">
-              {passed ? (
-                <CheckCircle2 size={15} className="text-emerald-500 shrink-0" />
-              ) : (
-                <XCircle size={15} className="text-[#CBD5E1] shrink-0" />
-              )}
-              <span className={`text-sm flex-1 ${passed ? "text-[#334155]" : "text-[#CBD5E1] line-through"}`}>
-                {check}
-              </span>
-              <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
-                passed ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-600"
-              }`}>
-                {passed ? "Pass" : "Fail"}
-              </span>
-            </li>
-          ))}
-        </ul>
+            return (
+              <div
+                key={client.client_id}
+                onClick={() => setSelectedClient(client)}
+                className="bg-white rounded-xl border border-[#E2E8F0] p-5 shadow-sm hover:shadow-md hover:border-[#BFDBFE] transition-all cursor-pointer group"
+              >
+                {/* Name + Score */}
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-full bg-[#EFF6FF] border border-[#BFDBFE] flex items-center justify-center shrink-0">
+                      <User size={15} className="text-[#2563EB]" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-[#0F172A]">{client.client_name}</p>
+                      <span className="text-[10px] font-medium bg-[#F1F5F9] text-[#64748B] px-1.5 py-0.5 rounded">
+                        {client.marketplace}
+                      </span>
+                    </div>
+                  </div>
+                  <span className={`text-2xl font-bold tabular-nums ${scoreColor(client.health_score)}`}>
+                    {client.health_score}
+                  </span>
+                </div>
+
+                {/* Metrics row */}
+                <div className="grid grid-cols-3 gap-2 mb-3 text-center">
+                  <div className="bg-[#F8FAFC] rounded-lg p-2">
+                    <p className="text-[10px] text-[#94A3B8] mb-0.5">Revenue</p>
+                    <p className="text-xs font-semibold text-[#0F172A]">{fmtCurrency(client.revenue_30d)}</p>
+                  </div>
+                  <div className="bg-[#F8FAFC] rounded-lg p-2">
+                    <p className="text-[10px] text-[#94A3B8] mb-0.5">ACoS</p>
+                    <p className={`text-xs font-semibold ${acosColor(acosNum)}`}>{acosNum.toFixed(1)}%</p>
+                  </div>
+                  <div className="bg-[#F8FAFC] rounded-lg p-2">
+                    <p className="text-[10px] text-[#94A3B8] mb-0.5">Orders</p>
+                    <p className="text-xs font-semibold text-[#0F172A]">{client.orders_30d.toLocaleString()}</p>
+                  </div>
+                </div>
+
+                {/* Status badge + products */}
+                <div className="flex items-center justify-between mb-3">
+                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${s.bg} ${s.color}`}>
+                    <Icon size={11} />
+                    {s.label}
+                  </span>
+                  <span className="text-xs text-[#94A3B8]">
+                    {client.active_products} active product{client.active_products !== 1 ? "s" : ""}
+                  </span>
+                </div>
+
+                {/* Health bar */}
+                <div className="h-1.5 bg-[#F1F5F9] rounded-full overflow-hidden">
+                  <div
+                    className="h-full rounded-full transition-all"
+                    style={{ width: `${client.health_score}%`, backgroundColor: s.barColor }}
+                  />
+                </div>
+
+                <div className="mt-3 pt-3 border-t border-[#F1F5F9] opacity-0 group-hover:opacity-100 transition-opacity">
+                  <span className="text-xs text-[#2563EB] font-medium">View Details →</span>
+                </div>
+              </div>
+            );
+          })
+        )}
       </div>
 
       {/* Client Detail Sheet */}
       <Sheet open={!!selectedClient} onOpenChange={(open) => !open && setSelectedClient(null)}>
         <SheetContent width={600}>
           {selectedClient && (() => {
-            const s = statusConfig[selectedClient.status];
+            const status = getStatus(selectedClient.health_score);
+            const s = statusConfig[status];
             const SIcon = s.icon;
-            const passedChecks = selectedClient.checks.filter((c) => c.passed).length;
-            const totalChecks = selectedClient.checks.length;
+            const checks = buildChecks(selectedClient);
+            const recommendations = buildRecommendations(selectedClient);
+            const passedChecks = checks.filter((c) => c.passed).length;
 
             return (
               <>
                 <SheetHeader>
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between w-full">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-full bg-[#EFF6FF] border border-[#BFDBFE] flex items-center justify-center">
                         <User size={18} className="text-[#2563EB]" />
                       </div>
                       <div>
-                        <SheetTitle>{selectedClient.name}</SheetTitle>
-                        <p className="text-xs text-[#94A3B8] font-mono">{selectedClient.account} · {selectedClient.category}</p>
+                        <SheetTitle>{selectedClient.client_name}</SheetTitle>
+                        <p className="text-xs text-[#94A3B8]">{selectedClient.marketplace}</p>
                       </div>
                     </div>
                     <SheetCloseButton />
@@ -529,37 +542,38 @@ export default function ClientAuditPage() {
                 </SheetHeader>
 
                 <SheetBody>
-                  {/* Score + Status */}
-                  <div className="flex items-center gap-4 mb-5">
-                    <div className="text-center">
-                      <div className={`text-4xl font-bold ${scoreColor(selectedClient.score)}`}>
-                        {selectedClient.score}
+                  {/* Score + status bar */}
+                  <div className="flex items-center gap-4">
+                    <div className="text-center shrink-0">
+                      <div className={`text-4xl font-bold ${scoreColor(selectedClient.health_score)}`}>
+                        {selectedClient.health_score}
                       </div>
                       <div className="text-xs text-[#94A3B8]">Health Score</div>
                     </div>
                     <div className="flex-1">
-                      <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center justify-between mb-1.5">
                         <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${s.bg} ${s.color}`}>
                           <SIcon size={11} />
                           {s.label}
                         </span>
-                        <span className="text-xs text-[#94A3B8]">{passedChecks}/{totalChecks} checks passed</span>
+                        <span className="text-xs text-[#94A3B8]">{passedChecks}/{checks.length} checks passed</span>
                       </div>
                       <div className="h-2.5 bg-[#F1F5F9] rounded-full overflow-hidden">
                         <div
                           className="h-full rounded-full"
-                          style={{ width: `${selectedClient.score}%`, backgroundColor: s.barColor }}
+                          style={{ width: `${selectedClient.health_score}%`, backgroundColor: s.barColor }}
                         />
                       </div>
                     </div>
                   </div>
 
-                  {/* Metrics Grid */}
-                  <div className="grid grid-cols-3 gap-3 mb-5">
+                  {/* Metrics grid */}
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                     {[
-                      { label: "Revenue", value: selectedClient.revenue, icon: TrendingUp, color: "#10B981" },
-                      { label: "ACoS", value: selectedClient.acos, icon: Target, color: parseFloat(selectedClient.acos) > 25 ? "#EF4444" : "#F59E0B" },
-                      { label: "Orders", value: selectedClient.orders.toLocaleString(), icon: ShoppingBag, color: "#2563EB" },
+                      { label: "Revenue (30d)", value: fmtCurrency(selectedClient.revenue_30d), icon: TrendingUp, color: "#10B981" },
+                      { label: "ACoS", value: `${selectedClient.acos.toFixed(1)}%`, icon: Target, color: selectedClient.acos > 25 ? "#EF4444" : selectedClient.acos < 15 ? "#10B981" : "#F59E0B" },
+                      { label: "Orders (30d)", value: selectedClient.orders_30d.toLocaleString(), icon: ShoppingBag, color: "#2563EB" },
+                      { label: "Active Products", value: selectedClient.active_products.toString(), icon: Package, color: "#8B5CF6" },
                     ].map(({ label, value, icon: Icon, color }) => (
                       <div key={label} className="bg-[#F8FAFC] rounded-lg p-3 text-center border border-[#E2E8F0]">
                         <Icon size={14} style={{ color }} className="mx-auto mb-1" />
@@ -569,15 +583,21 @@ export default function ClientAuditPage() {
                     ))}
                   </div>
 
-                  {/* Audit Checklist */}
-                  <div className="mb-5">
+                  {/* Ad spend */}
+                  <div className="bg-[#F8FAFC] rounded-lg border border-[#E2E8F0] px-4 py-3 flex items-center justify-between">
+                    <span className="text-xs text-[#64748B] font-medium">Ad Spend (30d)</span>
+                    <span className="text-sm font-bold text-[#0F172A]">{fmtCurrency(selectedClient.ad_spend_30d)}</span>
+                  </div>
+
+                  {/* Health checks */}
+                  <div>
                     <div className="flex items-center gap-2 mb-3">
                       <ClipboardList size={14} className="text-[#2563EB]" />
-                      <h4 className="text-sm font-semibold text-[#0F172A]">Audit Checklist</h4>
+                      <h4 className="text-sm font-semibold text-[#0F172A]">Health Checks</h4>
                     </div>
                     <div className="rounded-xl border border-[#E2E8F0] overflow-hidden">
                       <ul className="divide-y divide-[#F1F5F9]">
-                        {selectedClient.checks.map(({ check, passed, detail }) => (
+                        {checks.map(({ check, passed, detail }) => (
                           <li key={check} className="px-4 py-3">
                             <div className="flex items-center gap-3">
                               {passed ? (
@@ -594,7 +614,7 @@ export default function ClientAuditPage() {
                                 {passed ? "Pass" : "Fail"}
                               </span>
                             </div>
-                            {!passed && detail && (
+                            {detail && (
                               <p className="text-[10px] text-[#94A3B8] mt-1 ml-6 flex items-center gap-1">
                                 <AlertCircle size={9} />
                                 {detail}
@@ -610,43 +630,34 @@ export default function ClientAuditPage() {
                   <div>
                     <div className="flex items-center gap-2 mb-3">
                       <FileText size={14} className="text-[#2563EB]" />
-                      <h4 className="text-sm font-semibold text-[#0F172A]">Recommendations</h4>
+                      <h4 className="text-sm font-semibold text-[#0F172A]">Recommended Actions</h4>
                       <span className="ml-auto text-xs bg-[#EFF6FF] text-[#2563EB] px-2 py-0.5 rounded-full font-medium">
-                        {selectedClient.recommendations.length} actions
+                        {recommendations.length} action{recommendations.length !== 1 ? "s" : ""}
                       </span>
                     </div>
                     <div className="space-y-2">
-                      {selectedClient.recommendations.map((rec, i) => (
+                      {recommendations.map((rec, i) => (
                         <div
                           key={i}
                           className={`flex items-start gap-3 px-4 py-3 rounded-lg border ${
-                            rec.startsWith("CRITICAL") || rec.startsWith("Urgent")
+                            rec.startsWith("CRITICAL")
                               ? "bg-red-50 border-red-200"
                               : "bg-[#F8FAFC] border-[#E2E8F0]"
                           }`}
                         >
                           <span className={`text-xs font-bold shrink-0 ${
-                            rec.startsWith("CRITICAL") || rec.startsWith("Urgent")
-                              ? "text-red-600"
-                              : "text-[#2563EB]"
+                            rec.startsWith("CRITICAL") ? "text-red-600" : "text-[#2563EB]"
                           }`}>
                             {i + 1}
                           </span>
                           <p className={`text-xs ${
-                            rec.startsWith("CRITICAL") || rec.startsWith("Urgent")
-                              ? "text-red-700 font-medium"
-                              : "text-[#374151]"
+                            rec.startsWith("CRITICAL") ? "text-red-700 font-medium" : "text-[#374151]"
                           }`}>
                             {rec}
                           </p>
                         </div>
                       ))}
                     </div>
-                  </div>
-
-                  <div className="flex items-center gap-2 mt-4 text-xs text-[#94A3B8]">
-                    <Calendar size={11} />
-                    <span>Last audited: {selectedClient.lastAudit}</span>
                   </div>
                 </SheetBody>
 
@@ -671,6 +682,7 @@ export default function ClientAuditPage() {
           })()}
         </SheetContent>
       </Sheet>
+
       <PdfDateRangeModal
         open={pdfModalOpen}
         onClose={() => setPdfModalOpen(false)}

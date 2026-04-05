@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useEffect, useCallback } from "react";
+import Link from "next/link";
 import {
-  Target, Zap, AlertTriangle, CheckCircle2, TrendingDown,
+  Target, AlertTriangle, CheckCircle2, TrendingDown,
   TrendingUp, ChevronUp, ChevronDown, ChevronsUpDown,
-  ArrowDownRight, ArrowUpRight, Sparkles, XCircle, DollarSign,
-  Clock, Download,
+  ArrowDownRight, ArrowUpRight, DollarSign, Download,
+  Upload, XCircle,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -16,134 +17,147 @@ import {
 import { cn } from "@/lib/utils";
 import PdfDateRangeModal from "@/components/PdfDateRangeModal";
 import { captureToPdf } from "@/lib/pdf";
+import { ingestedApi, type IngestedCampaign, type WastedKeyword } from "@/lib/api";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
-interface Campaign {
-  id: string; name: string;
-  type: "Sponsored Products"|"Sponsored Brand"|"Sponsored Display";
-  spend: number; sales: number; acos: number; roas: number;
-  impressions: number; clicks: number; orders: number;
-  ctr: number; cvr: number; cpc: number;
-  status: "healthy"|"warning"|"critical"; breakEvenAcos: number;
-}
+type SortKey = "ad_spend" | "ad_sales" | "acos" | "roas" | "ctr" | "cvr" | "ad_orders";
 
-interface WastedKeyword {
-  term: string; spend: number; clicks: number; orders: number;
-  acos: number | null; action: "Pause"|"Add Negative"|"Reduce Bid"; impact: string;
-}
+type DaysOption = 7 | 14 | 30;
 
-interface BidRec {
-  keyword: string; matchType: "Exact"|"Phrase"|"Broad";
-  currentBid: number; suggestedBid: number;
-  currentAcos: number; targetAcos: number;
-  reason: string; urgency: "TODAY"|"THIS_WEEK";
-}
+// ── Constants ──────────────────────────────────────────────────────────────
 
-// ── Mock data ──────────────────────────────────────────────────────────────
+const STATUS_MAP = {
+  healthy:  { label: "Healthy",  variant: "success" as const, Icon: CheckCircle2 },
+  warning:  { label: "Warning",  variant: "warning" as const, Icon: AlertTriangle },
+  critical: { label: "Critical", variant: "danger"  as const, Icon: XCircle      },
+  no_sales: { label: "No Sales", variant: "default" as const, Icon: TrendingDown  },
+} satisfies Record<IngestedCampaign["status"], { label: string; variant: "success" | "warning" | "danger" | "default"; Icon: React.ElementType }>;
 
-const CAMPAIGNS: Campaign[] = [
-  { id:"C001", name:"Brand Defense — Earbuds",       type:"Sponsored Products", spend:1240, sales:10333, acos:12.0, roas:8.3,  impressions:142000, clicks:1136, orders:91,  ctr:0.80, cvr:8.0, cpc:1.09, status:"healthy",  breakEvenAcos:28 },
-  { id:"C002", name:"Category Attack — Electronics", type:"Sponsored Products", spend:3800, sales:13571, acos:28.0, roas:3.6,  impressions:520000, clicks:3640, orders:196, ctr:0.70, cvr:5.4, cpc:1.04, status:"warning",  breakEvenAcos:28 },
-  { id:"C003", name:"Competitor Conquest",           type:"Sponsored Products", spend:2100, sales:9545,  acos:22.0, roas:4.5,  impressions:310000, clicks:2480, orders:134, ctr:0.80, cvr:5.4, cpc:0.85, status:"healthy",  breakEvenAcos:28 },
-  { id:"C004", name:"Retargeting — Past Visitors",  type:"Sponsored Display",  spend:680,  sales:7556,  acos:9.0,  roas:11.1, impressions:88000,  clicks:616,  orders:62,  ctr:0.70, cvr:10.1,cpc:1.10, status:"healthy",  breakEvenAcos:28 },
-  { id:"C005", name:"Auto — New Products Launch",   type:"Sponsored Products", spend:950,  sales:2317,  acos:41.0, roas:2.4,  impressions:204000, clicks:1428, orders:30,  ctr:0.70, cvr:2.1, cpc:0.67, status:"critical", breakEvenAcos:22 },
-  { id:"C006", name:"Sponsored Brand — Video",      type:"Sponsored Brand",    spend:420,  sales:2800,  acos:15.0, roas:6.7,  impressions:95000,  clicks:570,  orders:38,  ctr:0.60, cvr:6.7, cpc:0.74, status:"healthy",  breakEvenAcos:28 },
-];
-
-const WASTED_KEYWORDS: WastedKeyword[] = [
-  { term:"usb hub desktop",     spend:94, clicks:112, orders:0, acos:null, action:"Add Negative", impact:"Stop $94/mo waste"  },
-  { term:"wired earbuds",       spend:76, clicks:88,  orders:0, acos:null, action:"Add Negative", impact:"Stop $76/mo waste"  },
-  { term:"gaming headset",      spend:68, clicks:71,  orders:0, acos:null, action:"Pause",        impact:"Stop $68/mo waste"  },
-  { term:"cheap earphones",     spend:54, clicks:63,  orders:0, acos:null, action:"Add Negative", impact:"Stop $54/mo waste"  },
-  { term:"usb splitter",        spend:48, clicks:55,  orders:0, acos:null, action:"Add Negative", impact:"Stop $48/mo waste"  },
-  { term:"laptop stand wooden", spend:41, clicks:49,  orders:0, acos:null, action:"Reduce Bid",   impact:"Reduce to $0.25 bid"},
-];
-
-const CAMPAIGN_DETAILS: Record<string, { wastedKws: WastedKeyword[]; bidRecs: BidRec[] }> = {
-  "C001": {
-    wastedKws: [{ term:"cheap earphones", spend:54, clicks:63, orders:0, acos:null, action:"Add Negative", impact:"Stop $54/mo waste" }],
-    bidRecs: [
-      { keyword:"wireless earbuds pro", matchType:"Exact", currentBid:1.10, suggestedBid:1.45, currentAcos:9.2, targetAcos:12, reason:"Strong performer — 9.2% ACoS well below break-even. Scale up bid for more volume.", urgency:"TODAY" },
-      { keyword:"bluetooth noise cancelling earbuds", matchType:"Phrase", currentBid:0.90, suggestedBid:1.20, currentAcos:11.4, targetAcos:12, reason:"Near break-even target. Modest bid increase to capture more impressions.", urgency:"THIS_WEEK" },
-    ],
-  },
-  "C002": {
-    wastedKws: [
-      { term:"gaming headset",  spend:68, clicks:71,  orders:0, acos:null, action:"Pause",        impact:"Stop $68/mo waste"  },
-      { term:"usb hub desktop", spend:94, clicks:112, orders:0, acos:null, action:"Add Negative", impact:"Stop $94/mo waste"  },
-      { term:"wired earbuds",   spend:76, clicks:88,  orders:0, acos:null, action:"Add Negative", impact:"Stop $76/mo waste"  },
-    ],
-    bidRecs: [
-      { keyword:"earbuds bluetooth",  matchType:"Broad",  currentBid:1.20, suggestedBid:0.85, currentAcos:31.5, targetAcos:25, reason:"ACoS exceeding target. Reduce broad match bid — capture with phrase/exact instead.", urgency:"TODAY" },
-      { keyword:"wireless earphones", matchType:"Phrase", currentBid:1.05, suggestedBid:0.78, currentAcos:29.4, targetAcos:25, reason:"Slightly above target. Trim bid 25% and monitor CVR.", urgency:"THIS_WEEK" },
-    ],
-  },
-  "C003": {
-    wastedKws: [],
-    bidRecs: [
-      { keyword:"anker earbuds", matchType:"Exact", currentBid:0.70, suggestedBid:0.95, currentAcos:17.2, targetAcos:22, reason:"Competitor conquest at 17.2% — well inside break-even. Push more volume.", urgency:"TODAY" },
-    ],
-  },
-  "C004": {
-    wastedKws: [],
-    bidRecs: [
-      { keyword:"retargeting audience", matchType:"Exact", currentBid:1.10, suggestedBid:1.35, currentAcos:7.8, targetAcos:12, reason:"Highest ROAS campaign (11.1x). Increase budget + bids to scale proven audience.", urgency:"TODAY" },
-    ],
-  },
-  "C005": {
-    wastedKws: [
-      { term:"laptop stand wooden", spend:41, clicks:49, orders:0, acos:null, action:"Reduce Bid",   impact:"Reduce to $0.25 bid"},
-      { term:"cheap earphones",     spend:54, clicks:63, orders:0, acos:null, action:"Add Negative", impact:"Stop $54/mo waste"  },
-      { term:"usb splitter",        spend:48, clicks:55, orders:0, acos:null, action:"Add Negative", impact:"Stop $48/mo waste"  },
-    ],
-    bidRecs: [
-      { keyword:"monitor light bar", matchType:"Broad", currentBid:0.67, suggestedBid:0.35, currentAcos:41.0, targetAcos:22, reason:"ACoS nearly 2× break-even. Halve broad-match bids immediately. Harvest to exact.", urgency:"TODAY" },
-      { keyword:"led monitor light",  matchType:"Exact", currentBid:0.67, suggestedBid:0.50, currentAcos:35.2, targetAcos:22, reason:"Below break-even ACoS. Reduce bid until CVR-adjusted ACoS normalizes.", urgency:"TODAY" },
-    ],
-  },
-  "C006": {
-    wastedKws: [],
-    bidRecs: [
-      { keyword:"wireless earbuds brand video", matchType:"Exact", currentBid:0.74, suggestedBid:0.95, currentAcos:13.2, targetAcos:15, reason:"Video ad performing well. Increase bid to win more top-of-page slots.", urgency:"THIS_WEEK" },
-    ],
-  },
-};
+const DAYS_OPTIONS: DaysOption[] = [30, 14, 7];
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
-type SortKey = "spend"|"sales"|"acos"|"roas"|"ctr"|"cvr"|"orders";
+const FMT = (n: number) =>
+  `$${n.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 
-const STATUS_MAP = {
-  healthy:  { label:"Healthy",  variant:"success" as const, Icon:CheckCircle2 },
-  warning:  { label:"Warning",  variant:"warning" as const, Icon:AlertTriangle },
-  critical: { label:"Critical", variant:"danger"  as const, Icon:XCircle       },
-};
+const FMT_DECIMAL = (n: number) =>
+  `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-const FMT = (n: number) => `$${n.toLocaleString("en-US", { minimumFractionDigits:0, maximumFractionDigits:0 })}`;
-const FMT_K = (n: number) => n >= 1000 ? `${(n/1000).toFixed(0)}K` : n.toString();
+const FMT_K = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(0)}K` : n.toString());
 
-function AcosBar({ acos, breakEven }: { acos: number; breakEven: number }) {
-  const pct = Math.min((acos / (breakEven * 1.5)) * 100, 100);
+function AcosBar({ acos }: { acos: number }) {
+  // Color thresholds: green < 15%, amber 15-25%, red > 25%
+  const color = acos > 25 ? "#EF4444" : acos >= 15 ? "#F59E0B" : "#10B981";
+  const pct = Math.min((acos / 50) * 100, 100); // scale up to 50% as max
   return (
     <div className="w-20 h-1.5 bg-[#F1F5F9] rounded-full overflow-hidden">
-      <div className="h-full rounded-full transition-all" style={{
-        width: `${pct}%`,
-        backgroundColor: acos > breakEven ? "#EF4444" : acos > breakEven * 0.85 ? "#F59E0B" : "#10B981",
-      }} />
+      <div
+        className="h-full rounded-full transition-all"
+        style={{ width: `${pct}%`, backgroundColor: color }}
+      />
     </div>
+  );
+}
+
+// ── Skeleton Components ────────────────────────────────────────────────────
+
+function CardSkeleton() {
+  return (
+    <div className="bg-white rounded-xl border border-[#E2E8F0] p-5 shadow-sm animate-pulse">
+      <div className="flex items-start justify-between mb-3">
+        <div className="w-10 h-10 bg-[#F1F5F9] rounded-lg" />
+        <div className="w-16 h-5 bg-[#F1F5F9] rounded-full" />
+      </div>
+      <div className="w-24 h-3 bg-[#F1F5F9] rounded mb-2" />
+      <div className="w-32 h-7 bg-[#F1F5F9] rounded mb-1" />
+      <div className="w-20 h-3 bg-[#F1F5F9] rounded" />
+    </div>
+  );
+}
+
+function RowSkeleton() {
+  return (
+    <tr className="animate-pulse border-b border-[#F1F5F9]">
+      {Array.from({ length: 9 }).map((_, i) => (
+        <td key={i} className="px-4 py-3.5">
+          <div className="h-4 bg-[#F1F5F9] rounded" style={{ width: i === 0 ? "80%" : "60%" }} />
+        </td>
+      ))}
+    </tr>
   );
 }
 
 // ── Component ──────────────────────────────────────────────────────────────
 
 export default function PPCOptimizerPage() {
-  const [sortKey, setSortKey]     = useState<SortKey>("spend");
-  const [sortDir, setSortDir]     = useState<"asc"|"desc">("desc");
-  const [selected, setSelected]   = useState<Campaign | null>(null);
-  const [activeTab, setActiveTab] = useState<"bids"|"waste">("bids");
+  // Data state
+  const [campaigns, setCampaigns] = useState<IngestedCampaign[]>([]);
+  const [wastedKeywords, setWastedKeywords] = useState<WastedKeyword[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Controls
+  const [clientId] = useState<number>(1);
+  const [days, setDays] = useState<DaysOption>(30);
+
+  // Table state
+  const [sortKey, setSortKey] = useState<SortKey>("ad_spend");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+
+  // Sheet state
+  const [selected, setSelected] = useState<IngestedCampaign | null>(null);
+
+  // PDF state
   const [pdfModalOpen, setPdfModalOpen] = useState(false);
   const reportRef = useRef<HTMLDivElement>(null);
+
+  // ── Fetch ──────────────────────────────────────────────────────────────
+
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [campaignData, wastedData] = await Promise.all([
+        ingestedApi.getCampaigns(clientId, days),
+        ingestedApi.getWastedKeywords(clientId, days),
+      ]);
+      setCampaigns(campaignData);
+      setWastedKeywords(wastedData);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load data");
+    } finally {
+      setLoading(false);
+    }
+  }, [clientId, days]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  // ── Derived metrics ────────────────────────────────────────────────────
+
+  const totalSpend  = campaigns.reduce((s, c) => s + c.ad_spend, 0);
+  const totalSales  = campaigns.reduce((s, c) => s + c.ad_sales, 0);
+  const totalOrders = campaigns.reduce((s, c) => s + c.ad_orders, 0);
+  const blendedAcos = totalSales > 0 ? ((totalSpend / totalSales) * 100).toFixed(1) : "0.0";
+  const totalWaste  = wastedKeywords.reduce((s, k) => s + k.spend, 0);
+
+  // ── Sort ───────────────────────────────────────────────────────────────
+
+  const sorted = useMemo(() => {
+    return [...campaigns].sort((a, b) => {
+      const dir = sortDir === "desc" ? -1 : 1;
+      return (a[sortKey] - b[sortKey]) * dir;
+    });
+  }, [campaigns, sortKey, sortDir]);
+
+  function handleSort(key: SortKey) {
+    if (key === sortKey) setSortDir((d) => (d === "desc" ? "asc" : "desc"));
+    else { setSortKey(key); setSortDir("desc"); }
+  }
+
+  // ── PDF ────────────────────────────────────────────────────────────────
 
   async function downloadPdf(dateRange: { label: string; from: Date; to: Date }) {
     if (!reportRef.current) return;
@@ -153,331 +167,494 @@ export default function PPCOptimizerPage() {
         orientation: "landscape",
         header: `PPC Optimizer Report | Period: ${dateRange.label}`,
       });
-    } catch (e) { alert("PDF failed: " + e); }
+    } catch (e) {
+      alert("PDF failed: " + e);
+    }
   }
 
-  const sorted = useMemo(() => {
-    return [...CAMPAIGNS].sort((a, b) => {
-      const dir = sortDir === "desc" ? -1 : 1;
-      return (a[sortKey] - b[sortKey]) * dir;
-    });
-  }, [sortKey, sortDir]);
-
-  function handleSort(key: SortKey) {
-    if (key === sortKey) setSortDir((d) => (d === "desc" ? "asc" : "desc"));
-    else { setSortKey(key); setSortDir("desc"); }
-  }
-
-  const detail = selected ? CAMPAIGN_DETAILS[selected.id] : null;
-
-  const totalSpend  = CAMPAIGNS.reduce((s, c) => s + c.spend, 0);
-  const totalSales  = CAMPAIGNS.reduce((s, c) => s + c.sales, 0);
-  const totalOrders = CAMPAIGNS.reduce((s, c) => s + c.orders, 0);
-  const blendedAcos = ((totalSpend / totalSales) * 100).toFixed(1);
-  const totalWaste  = WASTED_KEYWORDS.reduce((s, k) => s + k.spend, 0);
+  // ── Render ─────────────────────────────────────────────────────────────
 
   return (
     <div className="space-y-6">
 
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-[#0F172A]">PPC Optimizer</h2>
-          <p className="text-sm text-[#94A3B8] mt-1">Monitor, diagnose, and optimize Amazon Sponsored Ads campaigns</p>
+          <p className="text-sm text-[#94A3B8] mt-1">
+            Monitor, diagnose, and optimize Amazon Sponsored Ads campaigns
+          </p>
         </div>
-        <button onClick={() => setPdfModalOpen(true)} className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-[#374151] border border-[#E2E8F0] rounded-lg hover:bg-[#F8FAFC] transition-colors">
-          <Download size={14} />Export PDF
-        </button>
+        <div className="flex items-center gap-3">
+          {/* Days selector */}
+          <div className="flex items-center gap-1 bg-[#F8FAFC] border border-[#E2E8F0] rounded-lg p-1">
+            {DAYS_OPTIONS.map((d) => (
+              <button
+                key={d}
+                onClick={() => setDays(d)}
+                className={cn(
+                  "px-3 py-1 text-xs font-semibold rounded-md transition-colors",
+                  days === d
+                    ? "bg-white text-[#0F172A] shadow-sm border border-[#E2E8F0]"
+                    : "text-[#94A3B8] hover:text-[#64748B]"
+                )}
+              >
+                {d}D
+              </button>
+            ))}
+          </div>
+          <button
+            onClick={() => setPdfModalOpen(true)}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-[#374151] border border-[#E2E8F0] rounded-lg hover:bg-[#F8FAFC] transition-colors"
+          >
+            <Download size={14} />
+            Export PDF
+          </button>
+        </div>
       </div>
+
+      {/* Error state */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 rounded-xl px-5 py-4 flex items-center gap-3">
+          <AlertTriangle size={16} className="text-red-500 shrink-0" />
+          <p className="text-sm text-red-700">{error}</p>
+          <button
+            onClick={fetchData}
+            className="ml-auto text-xs font-semibold text-red-700 underline"
+          >
+            Retry
+          </button>
+        </div>
+      )}
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-        {[
-          { label:"Total Ad Spend",    value:FMT(totalSpend),   sub:"This month",   icon:DollarSign,   iconBg:"#EFF6FF", iconColor:"#2563EB", change:"+4.2%",       up:true  },
-          { label:"Blended ACoS",      value:`${blendedAcos}%`, sub:"Target: 20%",  icon:Target,       iconBg:"#F0FDF4", iconColor:"#10B981", change:"-1.8pp",      up:true  },
-          { label:"Total Ad Orders",   value:totalOrders.toLocaleString(), sub:`${FMT(Math.round(totalSales/totalOrders))} avg order`, icon:TrendingUp, iconBg:"#FDF4FF", iconColor:"#9333EA", change:"+11.2%", up:true },
-          { label:"Identified Waste",  value:FMT(totalWaste),   sub:`${WASTED_KEYWORDS.length} keywords to fix`, icon:AlertTriangle, iconBg:"#FFF1F2", iconColor:"#EF4444", change:"Action needed", up:false },
-        ].map(({ label, value, sub, icon: Icon, iconBg, iconColor, change, up }) => (
-          <div key={label} className="bg-white rounded-xl border border-[#E2E8F0] p-5 shadow-sm hover:shadow-md transition-shadow">
-            <div className="flex items-start justify-between mb-3">
-              <div className="p-2.5 rounded-lg" style={{ backgroundColor: iconBg }}>
-                <Icon size={17} style={{ color: iconColor }} />
+        {loading ? (
+          Array.from({ length: 4 }).map((_, i) => <CardSkeleton key={i} />)
+        ) : (
+          <>
+            {[
+              {
+                label: "Total Ad Spend",
+                value: FMT(totalSpend),
+                sub: `Last ${days} days`,
+                icon: DollarSign,
+                iconBg: "#EFF6FF",
+                iconColor: "#2563EB",
+                badge: null,
+                up: true,
+              },
+              {
+                label: "Blended ACoS",
+                value: `${blendedAcos}%`,
+                sub: "Total spend / total sales",
+                icon: Target,
+                iconBg: parseFloat(blendedAcos) > 25 ? "#FFF1F2" : "#F0FDF4",
+                iconColor: parseFloat(blendedAcos) > 25 ? "#EF4444" : "#10B981",
+                badge: null,
+                up: parseFloat(blendedAcos) <= 25,
+              },
+              {
+                label: "Total Ad Orders",
+                value: totalOrders.toLocaleString(),
+                sub: totalOrders > 0
+                  ? `${FMT_DECIMAL(totalSales / totalOrders)} avg order value`
+                  : "No orders yet",
+                icon: TrendingUp,
+                iconBg: "#FDF4FF",
+                iconColor: "#9333EA",
+                badge: null,
+                up: true,
+              },
+              {
+                label: "Identified Waste",
+                value: FMT(totalWaste),
+                sub: `${wastedKeywords.length} zero-order term${wastedKeywords.length !== 1 ? "s" : ""}`,
+                icon: AlertTriangle,
+                iconBg: "#FFF1F2",
+                iconColor: "#EF4444",
+                badge: wastedKeywords.length > 0 ? "Action needed" : "Clean",
+                up: wastedKeywords.length === 0,
+              },
+            ].map(({ label, value, sub, icon: Icon, iconBg, iconColor, badge, up }) => (
+              <div
+                key={label}
+                className="bg-white rounded-xl border border-[#E2E8F0] p-5 shadow-sm hover:shadow-md transition-shadow"
+              >
+                <div className="flex items-start justify-between mb-3">
+                  <div className="p-2.5 rounded-lg" style={{ backgroundColor: iconBg }}>
+                    <Icon size={17} style={{ color: iconColor }} />
+                  </div>
+                  {badge !== null && (
+                    <span
+                      className={cn(
+                        "flex items-center gap-0.5 text-xs font-semibold px-2 py-0.5 rounded-full",
+                        up ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-red-500"
+                      )}
+                    >
+                      {up ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
+                      {badge}
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-[#94A3B8] font-medium">{label}</p>
+                <p className="text-2xl font-bold text-[#0F172A] mt-0.5 tabular-nums">{value}</p>
+                <p className="text-xs text-[#CBD5E1] mt-1">{sub}</p>
               </div>
-              <span className={cn(
-                "flex items-center gap-0.5 text-xs font-semibold px-2 py-0.5 rounded-full",
-                up ? "bg-emerald-50 text-emerald-600" : "bg-red-50 text-red-500"
-              )}>
-                {up ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
-                {change}
-              </span>
-            </div>
-            <p className="text-xs text-[#94A3B8] font-medium">{label}</p>
-            <p className="text-2xl font-bold text-[#0F172A] mt-0.5 tabular-nums">{value}</p>
-            <p className="text-xs text-[#CBD5E1] mt-1">{sub}</p>
-          </div>
-        ))}
+            ))}
+          </>
+        )}
       </div>
 
-      {/* Wasted Spend Banner */}
-      <div className="bg-red-50 border border-red-200 rounded-xl px-5 py-4 flex items-start gap-4">
-        <AlertTriangle size={17} className="text-red-500 shrink-0 mt-0.5" />
-        <div className="flex-1">
-          <p className="text-sm font-semibold text-red-700">
-            ${totalWaste.toLocaleString()} in wasted ad spend identified this month
-          </p>
-          <p className="text-xs text-red-500 mt-0.5">
-            {WASTED_KEYWORDS.length} search terms with zero orders. Click any campaign row to view recommended fixes.
-          </p>
+      {/* Wasted Spend Banner — only when there is waste */}
+      {!loading && wastedKeywords.length > 0 && (
+        <div className="bg-red-50 border border-red-200 rounded-xl px-5 py-4 flex items-start gap-4">
+          <AlertTriangle size={17} className="text-red-500 shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-red-700">
+              {FMT(totalWaste)} in wasted ad spend identified (last {days} days)
+            </p>
+            <p className="text-xs text-red-500 mt-0.5">
+              {wastedKeywords.length} search term{wastedKeywords.length !== 1 ? "s" : ""} with zero orders. See the Wasted Keywords section below to take action.
+            </p>
+          </div>
         </div>
-        <Button variant="danger" size="sm" onClick={() => setSelected(CAMPAIGNS.find((c) => c.id === "C005") ?? null)}>
-          View Fixes
-        </Button>
-      </div>
+      )}
 
       {/* Campaign Table */}
       <div ref={reportRef} className="bg-white rounded-xl border border-[#E2E8F0] overflow-hidden shadow-sm">
         <div className="flex items-center justify-between px-6 py-4 border-b border-[#E2E8F0]">
           <div>
             <h3 className="text-sm font-semibold text-[#0F172A]">Campaign Performance</h3>
-            <p className="text-xs text-[#94A3B8] mt-0.5">Click any row to open AI bid recommendations</p>
+            <p className="text-xs text-[#94A3B8] mt-0.5">Click any row to view campaign details</p>
           </div>
-          <button
-            className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-white rounded-lg
-                       hover:opacity-90 transition-opacity active:scale-95"
-            style={{ backgroundColor: "#2563EB" }}
-          >
-            <Zap size={13} />Auto-Optimize All
-          </button>
         </div>
 
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-[#F8FAFC] text-left border-b border-[#E2E8F0]">
-                <th className="px-4 py-3 text-xs font-semibold text-[#94A3B8] uppercase tracking-wider">Campaign</th>
-                <th className="px-4 py-3 text-xs font-semibold text-[#94A3B8] uppercase tracking-wider">Type</th>
-                <SortTh label="Spend"  col="spend"  active={sortKey} dir={sortDir} onSort={handleSort} />
-                <SortTh label="Sales"  col="sales"  active={sortKey} dir={sortDir} onSort={handleSort} />
-                <SortTh label="ACoS"   col="acos"   active={sortKey} dir={sortDir} onSort={handleSort} />
-                <SortTh label="ROAS"   col="roas"   active={sortKey} dir={sortDir} onSort={handleSort} />
-                <SortTh label="Orders" col="orders" active={sortKey} dir={sortDir} onSort={handleSort} />
-                <SortTh label="CVR"    col="cvr"    active={sortKey} dir={sortDir} onSort={handleSort} />
-                <th className="px-4 py-3 text-xs font-semibold text-[#94A3B8] uppercase tracking-wider">Status</th>
+                <th className="px-4 py-3 text-xs font-semibold text-[#94A3B8] uppercase tracking-wider">
+                  Campaign
+                </th>
+                <SortTh label="Spend"   col="ad_spend"  active={sortKey} dir={sortDir} onSort={handleSort} />
+                <SortTh label="Sales"   col="ad_sales"  active={sortKey} dir={sortDir} onSort={handleSort} />
+                <SortTh label="ACoS"    col="acos"      active={sortKey} dir={sortDir} onSort={handleSort} />
+                <SortTh label="ROAS"    col="roas"      active={sortKey} dir={sortDir} onSort={handleSort} />
+                <SortTh label="Orders"  col="ad_orders" active={sortKey} dir={sortDir} onSort={handleSort} />
+                <SortTh label="CTR"     col="ctr"       active={sortKey} dir={sortDir} onSort={handleSort} />
+                <SortTh label="CVR"     col="cvr"       active={sortKey} dir={sortDir} onSort={handleSort} />
+                <th className="px-4 py-3 text-xs font-semibold text-[#94A3B8] uppercase tracking-wider">
+                  Status
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#F1F5F9]">
-              {sorted.map((c) => {
-                const s = STATUS_MAP[c.status];
-                const Icon = s.Icon;
-                return (
-                  <tr key={c.id} onClick={() => setSelected(c)}
-                    className="cursor-pointer transition-all duration-100 group
-                               hover:bg-[#EFF6FF] hover:shadow-[inset_0_0_0_1px_rgba(37,99,235,0.12)]">
-                    <td className="px-4 py-3.5">
-                      <div className="flex items-center gap-2">
-                        <Target size={13} className="text-[#CBD5E1] shrink-0" />
-                        <span className="font-medium text-[#0F172A] text-sm">{c.name}</span>
+              {loading ? (
+                Array.from({ length: 6 }).map((_, i) => <RowSkeleton key={i} />)
+              ) : sorted.length === 0 ? (
+                <tr>
+                  <td colSpan={9}>
+                    <div className="flex flex-col items-center justify-center py-16 gap-4 text-center">
+                      <div className="w-14 h-14 rounded-full bg-[#F1F5F9] flex items-center justify-center">
+                        <Upload size={24} className="text-[#94A3B8]" />
                       </div>
-                    </td>
-                    <td className="px-4 py-3.5"><Badge variant="outline" className="text-[11px]">{c.type}</Badge></td>
-                    <td className="px-4 py-3.5 tabular-nums font-medium text-[#334155]">{FMT(c.spend)}</td>
-                    <td className="px-4 py-3.5 tabular-nums font-medium text-[#334155]">{FMT(c.sales)}</td>
-                    <td className="px-4 py-3.5">
-                      <div className="space-y-1">
-                        <span className={cn("text-xs font-bold tabular-nums",
-                          c.acos > c.breakEvenAcos ? "text-red-500" : c.acos > c.breakEvenAcos * 0.85 ? "text-amber-600" : "text-emerald-600")}>
-                          {c.acos.toFixed(1)}%
-                        </span>
-                        <AcosBar acos={c.acos} breakEven={c.breakEvenAcos} />
+                      <div>
+                        <p className="text-sm font-semibold text-[#0F172A]">No campaign data yet</p>
+                        <p className="text-xs text-[#94A3B8] mt-1">
+                          Upload a Sponsored Ads report to see campaign performance
+                        </p>
                       </div>
-                    </td>
-                    <td className="px-4 py-3.5 tabular-nums font-semibold text-[#0F172A]">{c.roas.toFixed(1)}x</td>
-                    <td className="px-4 py-3.5 tabular-nums text-[#334155]">{c.orders}</td>
-                    <td className="px-4 py-3.5 tabular-nums text-[#64748B]">{c.cvr.toFixed(1)}%</td>
-                    <td className="px-4 py-3.5">
-                      <Badge variant={s.variant} className="flex items-center gap-1 w-fit">
-                        <Icon size={11} />{s.label}
-                      </Badge>
-                    </td>
-                  </tr>
-                );
-              })}
+                      <Link
+                        href="/dashboard/data-upload"
+                        className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white rounded-lg transition-opacity hover:opacity-90"
+                        style={{ backgroundColor: "#2563EB" }}
+                      >
+                        <Upload size={14} />
+                        Upload a Sponsored Ads report to see campaign data
+                      </Link>
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                sorted.map((c, idx) => {
+                  const s = STATUS_MAP[c.status];
+                  const StatusIcon = s.Icon;
+                  const acosColor =
+                    c.acos > 25
+                      ? "text-red-500"
+                      : c.acos >= 15
+                      ? "text-amber-600"
+                      : "text-emerald-600";
+                  return (
+                    <tr
+                      key={`${c.campaign_name}-${idx}`}
+                      onClick={() => setSelected(c)}
+                      className="cursor-pointer transition-all duration-100 hover:bg-[#EFF6FF] hover:shadow-[inset_0_0_0_1px_rgba(37,99,235,0.12)]"
+                    >
+                      <td className="px-4 py-3.5">
+                        <div className="flex items-center gap-2">
+                          <Target size={13} className="text-[#CBD5E1] shrink-0" />
+                          <span className="font-medium text-[#0F172A] text-sm leading-tight">
+                            {c.campaign_name}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3.5 tabular-nums font-medium text-[#334155]">
+                        {FMT(c.ad_spend)}
+                      </td>
+                      <td className="px-4 py-3.5 tabular-nums font-medium text-[#334155]">
+                        {FMT(c.ad_sales)}
+                      </td>
+                      <td className="px-4 py-3.5">
+                        <div className="space-y-1">
+                          <span className={cn("text-xs font-bold tabular-nums", acosColor)}>
+                            {c.acos.toFixed(1)}%
+                          </span>
+                          <AcosBar acos={c.acos} />
+                        </div>
+                      </td>
+                      <td className="px-4 py-3.5 tabular-nums font-semibold text-[#0F172A]">
+                        {c.roas.toFixed(1)}x
+                      </td>
+                      <td className="px-4 py-3.5 tabular-nums text-[#334155]">{c.ad_orders}</td>
+                      <td className="px-4 py-3.5 tabular-nums text-[#64748B]">{c.ctr.toFixed(2)}%</td>
+                      <td className="px-4 py-3.5 tabular-nums text-[#64748B]">{c.cvr.toFixed(1)}%</td>
+                      <td className="px-4 py-3.5">
+                        <Badge variant={s.variant} className="flex items-center gap-1 w-fit">
+                          <StatusIcon size={11} />
+                          {s.label}
+                        </Badge>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>
 
-        <div className="flex items-center justify-between px-6 py-3 border-t border-[#E2E8F0] bg-[#F8FAFC]">
-          <span className="text-xs text-[#94A3B8]">{CAMPAIGNS.length} campaigns · Last 30 days</span>
-          <div className="flex items-center gap-4 text-xs text-[#94A3B8]">
-            <span>Total Spend: <strong className="text-[#0F172A]">{FMT(totalSpend)}</strong></span>
-            <span>Total Sales: <strong className="text-[#0F172A]">{FMT(totalSales)}</strong></span>
-            <span>Blended ACoS: <strong className={parseFloat(blendedAcos) > 25 ? "text-red-500" : "text-emerald-600"}>{blendedAcos}%</strong></span>
+        {!loading && campaigns.length > 0 && (
+          <div className="flex items-center justify-between px-6 py-3 border-t border-[#E2E8F0] bg-[#F8FAFC]">
+            <span className="text-xs text-[#94A3B8]">
+              {campaigns.length} campaign{campaigns.length !== 1 ? "s" : ""} · Last {days} days
+            </span>
+            <div className="flex items-center gap-4 text-xs text-[#94A3B8]">
+              <span>
+                Total Spend: <strong className="text-[#0F172A]">{FMT(totalSpend)}</strong>
+              </span>
+              <span>
+                Total Sales: <strong className="text-[#0F172A]">{FMT(totalSales)}</strong>
+              </span>
+              <span>
+                Blended ACoS:{" "}
+                <strong
+                  className={
+                    parseFloat(blendedAcos) > 25 ? "text-red-500" : "text-emerald-600"
+                  }
+                >
+                  {blendedAcos}%
+                </strong>
+              </span>
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
-      {/* Campaign Drawer */}
+      {/* Wasted Keywords Section */}
+      {!loading && wastedKeywords.length > 0 && (
+        <div className="bg-white rounded-xl border border-[#E2E8F0] overflow-hidden shadow-sm">
+          <div className="px-6 py-4 border-b border-[#E2E8F0]">
+            <h3 className="text-sm font-semibold text-[#0F172A]">Wasted Keywords</h3>
+            <p className="text-xs text-[#94A3B8] mt-0.5">
+              Search terms with spend but zero orders — add as negatives to stop the bleed
+            </p>
+          </div>
+          <div className="divide-y divide-[#F1F5F9]">
+            {wastedKeywords.map((kw, i) => (
+              <div
+                key={`${kw.term}-${i}`}
+                className="flex items-center justify-between px-6 py-4 hover:bg-[#FFF1F2] transition-colors"
+              >
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-[#0F172A] font-mono truncate">
+                    {kw.term}
+                  </p>
+                  <p className="text-xs text-[#64748B] mt-0.5">
+                    {FMT_DECIMAL(kw.spend)} spent · {kw.clicks} click{kw.clicks !== 1 ? "s" : ""} · 0 orders
+                  </p>
+                </div>
+                <div className="flex items-center gap-4 shrink-0 ml-4">
+                  <div className="text-right">
+                    <p className="text-xs text-[#94A3B8]">Wasted spend</p>
+                    <p className="text-sm font-bold text-red-500 tabular-nums">
+                      {FMT_DECIMAL(kw.spend)}
+                    </p>
+                  </div>
+                  <Badge variant="danger" className="text-[11px]">
+                    Add Negative
+                  </Badge>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="px-6 py-3 bg-[#F8FAFC] border-t border-[#E2E8F0]">
+            <span className="text-xs text-[#94A3B8]">
+              {wastedKeywords.length} term{wastedKeywords.length !== 1 ? "s" : ""} ·{" "}
+              <strong className="text-red-500">{FMT(totalWaste)} total wasted spend</strong>
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* Campaign Detail Sheet */}
       <Sheet open={!!selected} onOpenChange={(open) => !open && setSelected(null)}>
         <SheetContent width={580}>
-          {selected && detail && (
+          {selected && (
             <>
               <SheetHeader>
                 <div className="flex-1 min-w-0">
-                  <div className={cn("h-1 rounded-full mb-3 w-16",
-                    selected.status === "healthy" ? "bg-emerald-500"
-                    : selected.status === "warning" ? "bg-amber-500" : "bg-red-500")} />
-                  <SheetTitle>{selected.name}</SheetTitle>
+                  <div
+                    className={cn(
+                      "h-1 rounded-full mb-3 w-16",
+                      selected.status === "healthy"
+                        ? "bg-emerald-500"
+                        : selected.status === "warning"
+                        ? "bg-amber-500"
+                        : selected.status === "critical"
+                        ? "bg-red-500"
+                        : "bg-slate-400"
+                    )}
+                  />
+                  <SheetTitle>{selected.campaign_name}</SheetTitle>
                   <SheetDescription>
-                    {selected.type}
+                    ACoS {selected.acos.toFixed(1)}%
                     <span className="mx-1.5 text-[#CBD5E1]">·</span>
-                    ACoS {selected.acos}%
+                    ROAS {selected.roas.toFixed(1)}x
                     <span className="mx-1.5 text-[#CBD5E1]">·</span>
-                    Break-even {selected.breakEvenAcos}%
+                    {selected.ad_orders} orders
                   </SheetDescription>
                 </div>
                 <SheetCloseButton />
               </SheetHeader>
 
               <SheetBody>
-
                 {/* Stats grid */}
                 <section>
                   <div className="grid grid-cols-4 gap-2">
                     {[
-                      { label:"Spend",       value:FMT(selected.spend)      },
-                      { label:"Sales",       value:FMT(selected.sales)      },
-                      { label:"ROAS",        value:`${selected.roas.toFixed(1)}x` },
-                      { label:"Orders",      value:selected.orders.toString()},
-                      { label:"Impressions", value:FMT_K(selected.impressions)},
-                      { label:"Clicks",      value:selected.clicks.toLocaleString()},
-                      { label:"CTR",         value:`${selected.ctr.toFixed(2)}%`},
-                      { label:"CVR",         value:`${selected.cvr.toFixed(1)}%`},
+                      { label: "Spend",       value: FMT(selected.ad_spend) },
+                      { label: "Sales",       value: FMT(selected.ad_sales) },
+                      { label: "ROAS",        value: `${selected.roas.toFixed(1)}x` },
+                      { label: "Orders",      value: selected.ad_orders.toString() },
+                      { label: "Impressions", value: FMT_K(selected.impressions) },
+                      { label: "Clicks",      value: selected.clicks.toLocaleString() },
+                      { label: "CTR",         value: `${selected.ctr.toFixed(2)}%` },
+                      { label: "CVR",         value: `${selected.cvr.toFixed(1)}%` },
                     ].map(({ label, value }) => (
-                      <div key={label} className="rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] px-3 py-2.5">
-                        <p className="text-[10px] text-[#94A3B8] font-medium uppercase tracking-wide">{label}</p>
-                        <p className="text-sm font-bold text-[#0F172A] tabular-nums mt-0.5">{value}</p>
+                      <div
+                        key={label}
+                        className="rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] px-3 py-2.5"
+                      >
+                        <p className="text-[10px] text-[#94A3B8] font-medium uppercase tracking-wide">
+                          {label}
+                        </p>
+                        <p className="text-sm font-bold text-[#0F172A] tabular-nums mt-0.5">
+                          {value}
+                        </p>
                       </div>
                     ))}
                   </div>
 
-                  {/* ACoS gauge */}
+                  {/* ACoS indicator */}
                   <div className="mt-4 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] p-4">
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs font-medium text-[#64748B]">ACoS vs Break-even</span>
+                      <span className="text-xs font-medium text-[#64748B]">ACoS Benchmark</span>
                       <div className="flex items-center gap-3">
                         <span className="flex items-center gap-1 text-xs text-[#64748B]">
-                          <span className="w-2 h-2 rounded-full bg-[#2563EB] inline-block" />ACoS {selected.acos}%
+                          <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
+                          Good: &lt;15%
                         </span>
                         <span className="flex items-center gap-1 text-xs text-[#64748B]">
-                          <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />B/E {selected.breakEvenAcos}%
+                          <span className="w-2 h-2 rounded-full bg-amber-400 inline-block" />
+                          Watch: 15-25%
+                        </span>
+                        <span className="flex items-center gap-1 text-xs text-[#64748B]">
+                          <span className="w-2 h-2 rounded-full bg-red-500 inline-block" />
+                          High: &gt;25%
                         </span>
                       </div>
                     </div>
                     <div className="relative h-3 bg-[#F1F5F9] rounded-full overflow-hidden">
-                      <div className="absolute inset-y-0 left-0 rounded-full" style={{
-                        width: `${Math.min((selected.acos / (selected.breakEvenAcos * 1.5)) * 100, 100)}%`,
-                        backgroundColor: selected.acos > selected.breakEvenAcos ? "#EF4444"
-                          : selected.acos > selected.breakEvenAcos * 0.85 ? "#F59E0B" : "#10B981",
-                      }} />
-                      <div className="absolute inset-y-0 w-0.5 bg-emerald-500"
-                        style={{ left:`${(selected.breakEvenAcos / (selected.breakEvenAcos * 1.5)) * 100}%` }} />
+                      <div
+                        className="absolute inset-y-0 left-0 rounded-full"
+                        style={{
+                          width: `${Math.min((selected.acos / 50) * 100, 100)}%`,
+                          backgroundColor:
+                            selected.acos > 25
+                              ? "#EF4444"
+                              : selected.acos >= 15
+                              ? "#F59E0B"
+                              : "#10B981",
+                        }}
+                      />
+                      {/* 15% marker */}
+                      <div
+                        className="absolute inset-y-0 w-px bg-amber-400 opacity-60"
+                        style={{ left: "30%" }}
+                      />
+                      {/* 25% marker */}
+                      <div
+                        className="absolute inset-y-0 w-px bg-red-400 opacity-60"
+                        style={{ left: "50%" }}
+                      />
                     </div>
                     <p className="text-xs text-[#64748B] mt-1.5">
-                      {selected.acos < selected.breakEvenAcos
-                        ? `${(selected.breakEvenAcos - selected.acos).toFixed(1)}pp headroom — consider scaling budget`
-                        : `${(selected.acos - selected.breakEvenAcos).toFixed(1)}pp over break-even — reduce bids`}
+                      {selected.acos < 15
+                        ? `${selected.acos.toFixed(1)}% ACoS — strong performance, consider scaling budget`
+                        : selected.acos <= 25
+                        ? `${selected.acos.toFixed(1)}% ACoS — moderate, monitor and optimize search terms`
+                        : `${selected.acos.toFixed(1)}% ACoS — above 25% threshold, review bids and negatives`}
                     </p>
                   </div>
-                </section>
 
-                {/* Tabs */}
-                <section>
-                  <div className="flex gap-1 border-b border-[#E2E8F0]">
-                    {(["bids","waste"] as const).map((tab) => (
-                      <button key={tab} onClick={() => setActiveTab(tab)}
-                        className={cn(
-                          "px-4 py-2 text-xs font-semibold capitalize transition-colors border-b-2 -mb-px",
-                          activeTab === tab
-                            ? "border-[#2563EB] text-[#2563EB]"
-                            : "border-transparent text-[#94A3B8] hover:text-[#64748B]"
-                        )}>
-                        {tab === "bids" ? "Bid Recommendations" : `Wasted Spend${detail.wastedKws.length > 0 ? ` (${detail.wastedKws.length})` : ""}`}
-                      </button>
-                    ))}
+                  {/* CPC info */}
+                  <div className="mt-3 rounded-xl bg-[#F8FAFC] border border-[#E2E8F0] p-4 flex items-center justify-between">
+                    <div>
+                      <p className="text-xs text-[#94A3B8] font-medium uppercase tracking-wide">
+                        Cost Per Click
+                      </p>
+                      <p className="text-lg font-bold text-[#0F172A] tabular-nums mt-0.5">
+                        {FMT_DECIMAL(selected.cpc)}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs text-[#94A3B8] font-medium uppercase tracking-wide">
+                        Status
+                      </p>
+                      <Badge
+                        variant={STATUS_MAP[selected.status].variant}
+                        className="flex items-center gap-1 mt-0.5"
+                      >
+                        {(() => {
+                          const S = STATUS_MAP[selected.status];
+                          return (
+                            <>
+                              <S.Icon size={11} />
+                              {S.label}
+                            </>
+                          );
+                        })()}
+                      </Badge>
+                    </div>
                   </div>
-
-                  {activeTab === "bids" && (
-                    <div className="space-y-3 pt-3">
-                      {detail.bidRecs.length === 0 && (
-                        <p className="text-sm text-[#94A3B8] py-6 text-center">No bid changes needed — this campaign is well optimized.</p>
-                      )}
-                      {detail.bidRecs.map((rec, i) => (
-                        <div key={i} className="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4 space-y-3
-                                                 hover:border-[#BFDBFE] hover:bg-[#EFF6FF] transition-all">
-                          <div className="flex items-start justify-between gap-3">
-                            <div>
-                              <p className="text-sm font-semibold text-[#0F172A]">{rec.keyword}</p>
-                              <Badge variant="outline" className="text-[11px] mt-1">{rec.matchType}</Badge>
-                            </div>
-                            <Badge variant={rec.urgency === "TODAY" ? "danger" : "warning"}
-                              className="shrink-0 flex items-center gap-1">
-                              <Clock size={10} />
-                              {rec.urgency === "TODAY" ? "Today" : "This Week"}
-                            </Badge>
-                          </div>
-                          <div className="flex items-center gap-3 text-sm">
-                            <span className="text-[#94A3B8] text-xs">Current</span>
-                            <span className="font-bold text-[#0F172A]">${rec.currentBid.toFixed(2)}</span>
-                            {rec.suggestedBid > rec.currentBid
-                              ? <TrendingUp size={13} className="text-emerald-500" />
-                              : <TrendingDown size={13} className="text-red-500" />}
-                            <span className="text-[#94A3B8] text-xs">Suggested</span>
-                            <span className={cn("font-bold text-sm",
-                              rec.suggestedBid > rec.currentBid ? "text-emerald-600" : "text-red-500")}>
-                              ${rec.suggestedBid.toFixed(2)}
-                            </span>
-                          </div>
-                          <p className="text-xs text-[#64748B] leading-snug">{rec.reason}</p>
-                          <div className="flex items-center gap-2 text-xs text-[#94A3B8]">
-                            <span>Current ACoS: <strong className="text-[#334155]">{rec.currentAcos}%</strong></span>
-                            <span>·</span>
-                            <span>Target: <strong className="text-[#334155]">{rec.targetAcos}%</strong></span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {activeTab === "waste" && (
-                    <div className="space-y-3 pt-3">
-                      {detail.wastedKws.length === 0 && (
-                        <div className="flex items-center gap-3 py-6 justify-center text-emerald-600">
-                          <CheckCircle2 size={17} />
-                          <p className="text-sm font-medium">No wasted keywords — campaign is clean.</p>
-                        </div>
-                      )}
-                      {detail.wastedKws.map((kw, i) => (
-                        <div key={i} className="rounded-xl border border-red-200 bg-red-50 p-4 flex items-start justify-between gap-4">
-                          <div className="flex-1">
-                            <p className="text-sm font-semibold text-[#0F172A] font-mono">{kw.term}</p>
-                            <p className="text-xs text-[#64748B] mt-0.5">${kw.spend} spent · {kw.clicks} clicks · 0 orders</p>
-                          </div>
-                          <div className="text-right shrink-0">
-                            <Badge variant="danger" className="mb-1">{kw.action}</Badge>
-                            <p className="text-xs text-emerald-600 font-semibold">{kw.impact}</p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
                 </section>
-
               </SheetBody>
 
               <SheetFooter>
-                <Button variant="primary" size="md" className="flex-1">
-                  <Sparkles size={14} />Apply All Recommendations
+                <Button variant="outline" size="md" className="flex-1" onClick={() => setSelected(null)}>
+                  Close
                 </Button>
-                <Button variant="outline" size="md" onClick={() => setSelected(null)}>Close</Button>
               </SheetFooter>
             </>
           )}
@@ -494,22 +671,41 @@ export default function PPCOptimizerPage() {
   );
 }
 
-// ── SortTh ────────────────────────────────────────────────────────────────
+// ── SortTh ─────────────────────────────────────────────────────────────────
 
-function SortTh({ label, col, active, dir, onSort }: {
-  label: string; col: SortKey; active: SortKey; dir: "asc"|"desc"; onSort: (k: SortKey) => void;
+function SortTh({
+  label,
+  col,
+  active,
+  dir,
+  onSort,
+}: {
+  label: string;
+  col: SortKey;
+  active: SortKey;
+  dir: "asc" | "desc";
+  onSort: (k: SortKey) => void;
 }) {
   const isActive = active === col;
   return (
-    <th className={cn(
-      "px-4 py-3 text-xs font-semibold uppercase tracking-wider cursor-pointer select-none transition-colors hover:text-[#0F172A]",
-      isActive ? "text-[#2563EB]" : "text-[#94A3B8]"
-    )} onClick={() => onSort(col)}>
+    <th
+      className={cn(
+        "px-4 py-3 text-xs font-semibold uppercase tracking-wider cursor-pointer select-none transition-colors hover:text-[#0F172A]",
+        isActive ? "text-[#2563EB]" : "text-[#94A3B8]"
+      )}
+      onClick={() => onSort(col)}
+    >
       <span className="flex items-center gap-1">
         {label}
-        {isActive
-          ? dir === "desc" ? <ChevronDown size={13} /> : <ChevronUp size={13} />
-          : <ChevronsUpDown size={12} className="opacity-40" />}
+        {isActive ? (
+          dir === "desc" ? (
+            <ChevronDown size={13} />
+          ) : (
+            <ChevronUp size={13} />
+          )
+        ) : (
+          <ChevronsUpDown size={12} className="opacity-40" />
+        )}
       </span>
     </th>
   );

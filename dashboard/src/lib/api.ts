@@ -68,6 +68,93 @@ export const clientsApi = {
 
 // ── AI ─────────────────────────────────────────────────────────────────────
 
+// ── Uploads ────────────────────────────────────────────────────────────────
+
+export interface UploadJob {
+  id: number;
+  client_id: number;
+  report_type: "business_report" | "ppc" | "search_terms";
+  filename: string;
+  file_size: number;
+  status: "pending" | "processing" | "completed" | "failed";
+  rows_parsed: number;
+  rows_inserted: number;
+  error_message?: string;
+  started_at?: string;
+  completed_at?: string;
+  created_at: string;
+}
+
+export interface UploadJobResult {
+  jobId: number;
+  reportType: string;
+  filename: string;
+  status: string;
+  message: string;
+}
+
+export const uploadsApi = {
+  upload: async (file: File, clientId: number, reportType?: string): Promise<UploadJobResult> => {
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("clientId", String(clientId));
+    if (reportType) formData.append("type", reportType);
+    const res = await fetch(`${BASE_URL}/uploads`, { method: "POST", body: formData });
+    const json: ApiResponse<UploadJobResult> = await res.json();
+    if (!json.success) throw new Error(json.error?.message ?? "Upload failed");
+    return json.data;
+  },
+  listJobs: (clientId: number) => apiFetch<UploadJob[]>(`/uploads?clientId=${clientId}`),
+  getJob: (id: number) => apiFetch<UploadJob>(`/uploads/${id}`),
+};
+
+// ── Ingested data (from uploaded CSVs) ────────────────────────────────────
+
+export interface IngestedProduct {
+  asin: string;
+  title: string;
+  revenue: number;
+  units_ordered: number;
+  sessions: number;
+  page_views: number;
+  buy_box_pct: number;
+  unit_session_pct: number;
+  share_pct: number;
+}
+
+export interface IngestedCampaign {
+  campaign_name: string;
+  impressions: number;
+  clicks: number;
+  ad_spend: number;
+  ad_sales: number;
+  ad_orders: number;
+  acos: number;
+  roas: number;
+  ctr: number;
+  cpc: number;
+  cvr: number;
+  status: "healthy" | "warning" | "critical" | "no_sales";
+}
+
+export interface WastedKeyword {
+  term: string;
+  spend: number;
+  clicks: number;
+  orders: number;
+}
+
+export const ingestedApi = {
+  getProducts: (clientId: number, days = 30) =>
+    apiFetch<IngestedProduct[]>(`/ingested/products?clientId=${clientId}&days=${days}`),
+  getCampaigns: (clientId: number, days = 30) =>
+    apiFetch<IngestedCampaign[]>(`/ingested/campaigns?clientId=${clientId}&days=${days}`),
+  getWastedKeywords: (clientId: number, days = 30) =>
+    apiFetch<WastedKeyword[]>(`/ingested/wasted-keywords?clientId=${clientId}&days=${days}`),
+};
+
+// ── AI ─────────────────────────────────────────────────────────────────────
+
 export const aiApi = {
   analyzeListing: (input: ListingInput) =>
     apiFetch<ListingAnalysis>("/ai/listing-analysis", {

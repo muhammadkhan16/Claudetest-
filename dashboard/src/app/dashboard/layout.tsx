@@ -12,6 +12,7 @@ const pageTitles: Record<string, string> = {
   "/dashboard/client-audit": "Client Audit",
   "/dashboard/image-generator": "Listing Images Analyzer",
   "/dashboard/amazon-connect": "Connect Amazon Account",
+  "/dashboard/data-upload": "Upload Reports",
 };
 
 export default function DashboardLayout({
