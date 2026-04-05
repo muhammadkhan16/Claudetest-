@@ -149,10 +149,21 @@ export default function OverviewPage() {
 
   useEffect(() => {
     loadAll(RANGE_DAYS[range]);
+    const onBrandChange = () => loadAll(RANGE_DAYS[range]);
+    window.addEventListener("amzsuite:brand-change", onBrandChange);
+    return () => window.removeEventListener("amzsuite:brand-change", onBrandChange);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [range]);
 
   async function loadAll(days: number) {
     setLoading(true);
+
+    // Try the backend API first (will fail on Cloudflare Pages — backend is localhost)
+    let apiOv: OverviewMetrics | null = null;
+    let apiTr: TrendPoint[] = [];
+    let apiTp: TopProduct[] = [];
+    let apiUploads: UploadJob[] = [];
+
     try {
       const [ov, tr, tp, uploads] = await Promise.allSettled([
         metricsApi.getOverview(),
@@ -160,33 +171,57 @@ export default function OverviewPage() {
         metricsApi.getTopProducts(5),
         uploadsApi.listJobs(DEFAULT_CLIENT_ID),
       ]);
-      if (ov.status === "fulfilled") setOverview(ov.value);
-      if (tr.status === "fulfilled") setTrend(tr.value);
-      if (tp.status === "fulfilled") setTopProducts(tp.value);
-      if (uploads.status === "fulfilled") setRecentUploads(uploads.value.slice(0, 5));
+      if (ov.status === "fulfilled") apiOv = ov.value;
+      if (tr.status === "fulfilled") apiTr = tr.value;
+      if (tp.status === "fulfilled") apiTp = tp.value;
+      if (uploads.status === "fulfilled") apiUploads = uploads.value.slice(0, 5);
     } catch { /* ignore */ }
 
-    // Fall back to localStorage if API returned nothing
-    if (!overview && !trend.length && localStore.hasData()) {
-      const localTrend = localStore.getTrend();
+    // If API worked use it, otherwise use local/demo data
+    if (apiOv) {
+      setOverview(apiOv);
+      setTrend(apiTr);
+      setTopProducts(apiTp);
+      setRecentUploads(apiUploads);
+    } else {
+      // localStore always has data (real or demo)
+      const localTrend    = localStore.getTrend();
       const localProducts = localStore.getProducts();
-      const { totalRevenue, totalOrders, totalSpend } = localStore.getOverview();
+      const { totalRevenue, totalOrders, totalSpend, roas } = localStore.getOverview();
+
+      // Compute 30-day change vs prior 30 for trend label
+      const half = Math.floor(localTrend.length / 2);
+      const recentRev  = localTrend.slice(-half).reduce((s, d) => s + d.revenue, 0);
+      const priorRev   = localTrend.slice(0, half).reduce((s, d) => s + d.revenue, 0);
+      const changePct  = priorRev > 0 ? ((recentRev - priorRev) / priorRev) * 100 : 0;
+      const changeLabel = `${changePct >= 0 ? "+" : ""}${changePct.toFixed(1)}%`;
+
       setTrend(localTrend);
       setTopProducts(localProducts.slice(0, 5) as unknown as TopProduct[]);
       setOverview({
-        revenue: { value: totalRevenue, formatted: `$${totalRevenue.toLocaleString()}`, change: 0, changeLabel: "—", trend: "flat" },
-        orders: { value: totalOrders, change: 0, changeLabel: "—", trend: "flat" },
-        adSpend: { value: totalSpend, formatted: `$${totalSpend.toLocaleString()}`, acos: totalRevenue > 0 ? (totalSpend / totalRevenue) * 100 : 0, roas: totalSpend > 0 ? totalRevenue / totalSpend : 0 },
+        revenue:  { value: totalRevenue, formatted: `$${totalRevenue.toLocaleString()}`, change: changePct, changeLabel, trend: changePct >= 0 ? "up" : "down" },
+        orders:   { value: totalOrders, change: 0, changeLabel: "—", trend: "flat" },
+        adSpend:  {
+          value:   totalSpend,
+          formatted: `$${totalSpend.toLocaleString()}`,
+          acos:    totalRevenue > 0 ? (totalSpend / totalRevenue) * 100 : 0,
+          roas,
+        },
         activeClients: 1,
       });
-      setRecentUploads(
-        localStore.getUploads().slice(0, 5).map((u, i) => ({
-          id: i + 1, client_id: 1, report_type: u.report_type as "business_report" | "ppc" | "search_terms",
-          filename: u.filename, file_size: 0, status: "completed" as const,
-          rows_parsed: u.row_count, rows_inserted: u.row_count,
-          created_at: u.date,
-        }))
-      );
+
+      const uploads = localStore.getUploads();
+      if (uploads.length > 0) {
+        setRecentUploads(
+          uploads.slice(0, 5).map((u, i) => ({
+            id: i + 1, client_id: 1,
+            report_type: u.report_type as "business_report" | "ppc" | "search_terms",
+            filename: u.filename, file_size: 0, status: "completed" as const,
+            rows_parsed: u.row_count, rows_inserted: u.row_count,
+            created_at: u.date,
+          }))
+        );
+      }
     }
     setLoading(false);
   }
@@ -202,7 +237,7 @@ export default function OverviewPage() {
     } catch (e) { alert("PDF failed: " + e); }
   }
 
-  const hasData = !loading && (overview !== null || trend.length > 0);
+  const hasData = !loading && overview !== null;
   const revenues = trend.map((d) => d.revenue);
   const adSpends = trend.map((d) => d.adSpend);
   const W = 700; const H = 160;

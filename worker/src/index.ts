@@ -13,30 +13,70 @@ const CORS = {
 // ── CSV Processing ───────────────────────────────────────────────────────────
 
 const HEADER_ALIASES: Record<string, string[]> = {
-  report_date:          ["date", "report date", "day"],
-  asin:                 ["(child) asin", "child asin", "asin", "advertised asin", "product asin"],
-  product_title:        ["title", "product name", "product title", "advertised sku"],
-  sessions:             ["sessions", "session – total", "sessions - total", "sessions total"],
-  page_views:           ["page views", "page views – total", "page views - total", "page views total"],
-  buy_box_pct:          ["buy box percentage", "featured offer (buy box) percentage", "buy box %"],
-  units_ordered:        ["units ordered", "units ordered - total", "units ordered – total"],
-  revenue:              ["ordered product sales", "ordered product sales – total", "ordered product sales - total"],
-  unit_session_pct:     ["unit session percentage", "unit session percentage – total"],
+  report_date:          ["date", "report date", "day", "start date"],
+  asin:                 ["(child) asin", "child asin", "asin", "advertised asin", "product asin", "(parent) asin"],
+  product_title:        ["title", "product name", "product title", "advertised sku", "sku"],
+  sessions:             ["sessions", "session – total", "sessions - total", "sessions total", "sessions – total"],
+  page_views:           ["page views", "page views – total", "page views - total", "page views total", "page views – total"],
+  buy_box_pct:          ["buy box percentage", "featured offer (buy box) percentage", "buy box %", "featured offer percentage"],
+  units_ordered:        ["units ordered", "units ordered - total", "units ordered – total", "units ordered– total"],
+  revenue:              ["ordered product sales", "ordered product sales – total", "ordered product sales - total", "ordered product sales– total"],
+  unit_session_pct:     ["unit session percentage", "unit session percentage – total", "unit session percentage - total"],
   campaign_name:        ["campaign name", "campaign"],
   ad_group_name:        ["ad group name", "ad group"],
-  keyword:              ["keyword", "keyword text", "targeting"],
+  keyword:              ["keyword", "keyword text", "targeting", "keyword or product targeting"],
   match_type:           ["match type", "keyword match type"],
-  customer_search_term: ["customer search term", "search term"],
+  customer_search_term: ["customer search term", "search term", "customer search terms"],
   impressions:          ["impressions", "ad impressions"],
   clicks:               ["clicks", "ad clicks"],
-  ad_spend:             ["spend", "cost", "ad spend", "7 day total spend", "14 day total spend", "total spend"],
-  ad_sales:             ["7 day total sales", "14 day total sales", "total advertising sales", "sales", "attributed sales (total)"],
-  ad_orders:            ["7 day total orders (#)", "14 day total orders (#)", "orders", "total orders", "attributed conversions (total)"],
-  ad_units:             ["units", "7 day total units (#)"],
-  ctr:                  ["click-thru rate (ctr)", "ctr", "click through rate"],
-  cpc:                  ["cost per click (cpc)", "cpc", "cost-per-click"],
-  acos:                 ["advertising cost of sales (acos)", "acos", "total acos"],
-  conversion_rate:      ["conversion rate", "cvr", "order rate"],
+  // Spend — Amazon uses "Spend" in most PPC reports
+  ad_spend:             [
+    "spend", "cost", "ad spend",
+    "7 day total spend", "14 day total spend", "30 day total spend", "total spend",
+  ],
+  // Sales — Amazon appends ($) or currency code to the header
+  ad_sales:             [
+    "7 day total sales", "7 day total sales ($)",
+    "14 day total sales", "14 day total sales ($)",
+    "30 day total sales", "30 day total sales ($)",
+    "total advertising sales", "total advertising sales ($)",
+    "sales ($)", "sales",
+    "7 day advertised sku sales", "7 day advertised sku sales ($)",
+    "attributed sales (total)", "attributed sales 30d",
+  ],
+  // Orders — Amazon appends (#) to the header
+  ad_orders:            [
+    "7 day total orders (#)", "7 day total orders",
+    "14 day total orders (#)", "14 day total orders",
+    "30 day total orders (#)", "30 day total orders",
+    "orders", "total orders", "attributed conversions (total)", "attributed conversions 30d",
+  ],
+  // Units
+  ad_units:             [
+    "7 day total units (#)", "7 day total units",
+    "14 day total units (#)", "14 day total units",
+    "units",
+  ],
+  // CTR — Amazon uses "Click-Through Rate (CTR)" (hyphen through, not thru)
+  ctr:                  [
+    "click-through rate (ctr)", "click-thru rate (ctr)",
+    "ctr", "click through rate", "click-through rate",
+  ],
+  // CPC
+  cpc:                  ["cost per click (cpc)", "cost per click", "cpc", "cost-per-click"],
+  // ACoS — Amazon uses "Total Advertising Cost of Sales (ACoS)"
+  acos:                 [
+    "advertising cost of sales (acos)",
+    "total advertising cost of sales (acos)",
+    "acos", "total acos",
+  ],
+  // ROAS — stored for reference; we recalculate from spend/sales
+  roas:                 [
+    "total return on advertising spend (roas)",
+    "return on advertising spend (roas)",
+    "roas",
+  ],
+  conversion_rate:      ["conversion rate", "cvr", "order rate", "order session percentage"],
 };
 
 // Build reverse lookup: header string → canonical key
@@ -200,20 +240,28 @@ async function handleProcessCSV(request: Request): Promise<Response> {
     } else if (reportType === "ppc") {
       const campaign = get(row, "campaign_name");
       if (!campaign) continue;
+      const spend  = toNum(get(row, "ad_spend"));
+      const sales  = toNum(get(row, "ad_sales"));
+      const clicks = toNum(get(row, "clicks"));
+      const impr   = toNum(get(row, "impressions"));
+      const orders = toNum(get(row, "ad_orders"));
       normalized.push({
         report_date:   reportDate,
         campaign_name: campaign,
         ad_group_name: get(row, "ad_group_name") || "",
         keyword:       get(row, "keyword") || "",
         match_type:    get(row, "match_type") || "",
-        impressions:   toNum(get(row, "impressions")),
-        clicks:        toNum(get(row, "clicks")),
-        ad_spend:      toNum(get(row, "ad_spend")),
-        ad_sales:      toNum(get(row, "ad_sales")),
-        ad_orders:     toNum(get(row, "ad_orders")),
-        acos:          toPct(get(row, "acos")),
-        ctr:           toPct(get(row, "ctr")),
-        cpc:           toNum(get(row, "cpc")),
+        impressions:   impr,
+        clicks,
+        ad_spend:      spend,
+        ad_sales:      sales,
+        ad_orders:     orders,
+        ad_units:      toNum(get(row, "ad_units")),
+        // Store raw parsed values; local-store recalculates from aggregated totals
+        acos:  sales  > 0 ? spend / sales       : toPct(get(row, "acos")),
+        ctr:   impr   > 0 ? clicks / impr        : toPct(get(row, "ctr")),
+        cpc:   clicks > 0 ? spend / clicks       : toNum(get(row, "cpc")),
+        roas:  spend  > 0 ? sales  / spend       : toNum(get(row, "roas")),
       });
     } else {
       // search_terms
@@ -465,9 +513,24 @@ async function handleAmazonImages(request: Request): Promise<Response> {
     const priceMatch = html.match(/class="a-price-whole"[^>]*>([0-9,.]+)</);
     const price = priceMatch ? `$${priceMatch[1]}` : "N/A";
 
-    // Extract brand
-    const brandMatch = html.match(/id="bylineInfo"[^>]*>[\s\S]*?(?:Visit the|Brand:)\s*<[^>]*>([^<]+)</);
-    const brand = brandMatch ? brandMatch[1].trim() : "Unknown Brand";
+    // Extract brand — try multiple Amazon HTML patterns
+    let brand = "";
+    const brandPatterns = [
+      /id="bylineInfo"[^>]*>[\s\S]{0,200}?(?:Visit the|by)\s+<[^>]*>([^<]{2,60})</i,
+      /"brand"\s*:\s*"([^"]{2,60})"/,
+      /class="[^"]*po-brand[^"]*"[\s\S]{0,100}?<span[^>]*>([^<]{2,60})<\/span>/i,
+      /"brandName"\s*:\s*"([^"]{2,60})"/,
+      /data-brand="([^"]{2,60})"/,
+      /itemprop="brand"[\s\S]{0,100}?(?:content|itemprop="name")[^>]*>([^<]{2,60})</i,
+    ];
+    for (const pat of brandPatterns) {
+      const m = html.match(pat);
+      if (m?.[1]?.trim() && m[1].trim().length > 1) {
+        brand = m[1].trim().replace(/&amp;/g, "&").replace(/&#\d+;/g, "");
+        break;
+      }
+    }
+    if (!brand) brand = "Unknown Brand";
 
     if (images.length === 0) {
       return jsonRaw({

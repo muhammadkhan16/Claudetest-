@@ -3602,32 +3602,32 @@
       "format": "cjs"
     },
     ".open-next/server-functions/default/.next/server/app/dashboard/page_client-reference-manifest.js": {
-      "bytes": 7716,
+      "bytes": 7718,
       "imports": [],
       "format": "cjs"
     },
     ".open-next/server-functions/default/.next/server/app/dashboard/profit-center/page_client-reference-manifest.js": {
-      "bytes": 8044,
-      "imports": [],
-      "format": "cjs"
-    },
-    ".open-next/server-functions/default/.next/server/app/dashboard/ppc-optimizer/page_client-reference-manifest.js": {
-      "bytes": 8043,
+      "bytes": 8046,
       "imports": [],
       "format": "cjs"
     },
     ".open-next/server-functions/default/.next/server/app/dashboard/listing-ai/page_client-reference-manifest.js": {
-      "bytes": 7584,
+      "bytes": 7586,
+      "imports": [],
+      "format": "cjs"
+    },
+    ".open-next/server-functions/default/.next/server/app/dashboard/ppc-optimizer/page_client-reference-manifest.js": {
+      "bytes": 8045,
       "imports": [],
       "format": "cjs"
     },
     ".open-next/server-functions/default/.next/server/app/dashboard/client-audit/page_client-reference-manifest.js": {
-      "bytes": 6717,
+      "bytes": 6719,
       "imports": [],
       "format": "cjs"
     },
     ".open-next/server-functions/default/node_modules/next/dist/server/load-manifest.external.js": {
-      "bytes": 27587,
+      "bytes": 27182,
       "imports": [
         {
           "path": "path",
@@ -3675,14 +3675,14 @@
           "original": "C:\\Users\\dopek\\OneDrive\\Desktop\\Cursor Claude test\\dashboard\\.open-next\\server-functions\\default\\.next\\server\\app\\dashboard\\profit-center\\page_client-reference-manifest.js"
         },
         {
-          "path": ".open-next/server-functions/default/.next/server/app/dashboard/ppc-optimizer/page_client-reference-manifest.js",
-          "kind": "require-call",
-          "original": "C:\\Users\\dopek\\OneDrive\\Desktop\\Cursor Claude test\\dashboard\\.open-next\\server-functions\\default\\.next\\server\\app\\dashboard\\ppc-optimizer\\page_client-reference-manifest.js"
-        },
-        {
           "path": ".open-next/server-functions/default/.next/server/app/dashboard/listing-ai/page_client-reference-manifest.js",
           "kind": "require-call",
           "original": "C:\\Users\\dopek\\OneDrive\\Desktop\\Cursor Claude test\\dashboard\\.open-next\\server-functions\\default\\.next\\server\\app\\dashboard\\listing-ai\\page_client-reference-manifest.js"
+        },
+        {
+          "path": ".open-next/server-functions/default/.next/server/app/dashboard/ppc-optimizer/page_client-reference-manifest.js",
+          "kind": "require-call",
+          "original": "C:\\Users\\dopek\\OneDrive\\Desktop\\Cursor Claude test\\dashboard\\.open-next\\server-functions\\default\\.next\\server\\app\\dashboard\\ppc-optimizer\\page_client-reference-manifest.js"
         },
         {
           "path": ".open-next/server-functions/default/.next/server/app/dashboard/client-audit/page_client-reference-manifest.js",
@@ -3751,7 +3751,7 @@
       "format": "cjs"
     },
     ".open-next/server-functions/default/.next/server/app/dashboard/client-audit/page.js": {
-      "bytes": 1099,
+      "bytes": 1124,
       "imports": [
         {
           "path": ".open-next/server-functions/default/.next/server/chunks/ssr/[turbopack]_runtime.js",
@@ -3762,7 +3762,7 @@
       "format": "cjs"
     },
     ".open-next/server-functions/default/.next/server/app/dashboard/listing-ai/page.js": {
-      "bytes": 1095,
+      "bytes": 1120,
       "imports": [
         {
           "path": ".open-next/server-functions/default/.next/server/chunks/ssr/[turbopack]_runtime.js",
@@ -3773,7 +3773,7 @@
       "format": "cjs"
     },
     ".open-next/server-functions/default/.next/server/app/dashboard/page.js": {
-      "bytes": 1070,
+      "bytes": 1095,
       "imports": [
         {
           "path": ".open-next/server-functions/default/.next/server/chunks/ssr/[turbopack]_runtime.js",
@@ -3784,7 +3784,7 @@
       "format": "cjs"
     },
     ".open-next/server-functions/default/.next/server/app/dashboard/ppc-optimizer/page.js": {
-      "bytes": 1101,
+      "bytes": 1126,
       "imports": [
         {
           "path": ".open-next/server-functions/default/.next/server/chunks/ssr/[turbopack]_runtime.js",
@@ -3795,7 +3795,7 @@
       "format": "cjs"
     },
     ".open-next/server-functions/default/.next/server/app/dashboard/profit-center/page.js": {
-      "bytes": 1101,
+      "bytes": 1126,
       "imports": [
         {
           "path": ".open-next/server-functions/default/.next/server/chunks/ssr/[turbopack]_runtime.js",
@@ -5460,7 +5460,7 @@
       "format": "esm"
     },
     ".open-next/server-functions/default/index.mjs": {
-      "bytes": 86211,
+      "bytes": 85918,
       "imports": [
         {
           "path": "node:module",
@@ -6646,22 +6646,22 @@
           "bytesInOutput": 5754
         },
         ".open-next/server-functions/default/.next/server/app/dashboard/page_client-reference-manifest.js": {
-          "bytesInOutput": 7361
+          "bytesInOutput": 7363
         },
         ".open-next/server-functions/default/.next/server/app/dashboard/profit-center/page_client-reference-manifest.js": {
-          "bytesInOutput": 7703
-        },
-        ".open-next/server-functions/default/.next/server/app/dashboard/ppc-optimizer/page_client-reference-manifest.js": {
-          "bytesInOutput": 7702
+          "bytesInOutput": 7705
         },
         ".open-next/server-functions/default/.next/server/app/dashboard/listing-ai/page_client-reference-manifest.js": {
-          "bytesInOutput": 7240
+          "bytesInOutput": 7242
+        },
+        ".open-next/server-functions/default/.next/server/app/dashboard/ppc-optimizer/page_client-reference-manifest.js": {
+          "bytesInOutput": 7704
         },
         ".open-next/server-functions/default/.next/server/app/dashboard/client-audit/page_client-reference-manifest.js": {
-          "bytesInOutput": 6430
+          "bytesInOutput": 6432
         },
         ".open-next/server-functions/default/node_modules/next/dist/server/load-manifest.external.js": {
-          "bytesInOutput": 18822
+          "bytesInOutput": 18568
         },
         ".open-next/server-functions/default/.next/server/chunks/ssr/[turbopack]_runtime.js": {
           "bytesInOutput": 15468
@@ -6673,19 +6673,19 @@
           "bytesInOutput": 993
         },
         ".open-next/server-functions/default/.next/server/app/dashboard/client-audit/page.js": {
-          "bytesInOutput": 1221
+          "bytesInOutput": 1246
         },
         ".open-next/server-functions/default/.next/server/app/dashboard/listing-ai/page.js": {
-          "bytesInOutput": 1215
+          "bytesInOutput": 1240
         },
         ".open-next/server-functions/default/.next/server/app/dashboard/page.js": {
-          "bytesInOutput": 1182
+          "bytesInOutput": 1207
         },
         ".open-next/server-functions/default/.next/server/app/dashboard/ppc-optimizer/page.js": {
-          "bytesInOutput": 1224
+          "bytesInOutput": 1249
         },
         ".open-next/server-functions/default/.next/server/app/dashboard/profit-center/page.js": {
-          "bytesInOutput": 1224
+          "bytesInOutput": 1249
         },
         ".open-next/server-functions/default/.next/server/chunks/[turbopack]_runtime.js": {
           "bytesInOutput": 15455
@@ -6895,10 +6895,10 @@
           "bytesInOutput": 5074
         },
         ".open-next/server-functions/default/index.mjs": {
-          "bytesInOutput": 60293
+          "bytesInOutput": 60039
         }
       },
-      "bytes": 1928654
+      "bytes": 1928281
     }
   }
 }

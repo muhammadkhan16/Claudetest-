@@ -6,7 +6,7 @@ import {
   Target, AlertTriangle, CheckCircle2, TrendingDown,
   TrendingUp, ChevronUp, ChevronDown, ChevronsUpDown,
   ArrowDownRight, ArrowUpRight, DollarSign, Download,
-  Upload, XCircle,
+  Upload, XCircle, Receipt,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -142,6 +142,10 @@ export default function PPCOptimizerPage() {
 
   useEffect(() => {
     fetchData();
+    // Re-fetch when brand changes in the header switcher
+    const onBrandChange = () => fetchData();
+    window.addEventListener("amzsuite:brand-change", onBrandChange);
+    return () => window.removeEventListener("amzsuite:brand-change", onBrandChange);
   }, [fetchData]);
 
   // ── Derived metrics ────────────────────────────────────────────────────
@@ -150,6 +154,7 @@ export default function PPCOptimizerPage() {
   const totalSales  = campaigns.reduce((s, c) => s + c.ad_sales, 0);
   const totalOrders = campaigns.reduce((s, c) => s + c.ad_orders, 0);
   const blendedAcos = totalSales > 0 ? ((totalSpend / totalSales) * 100).toFixed(1) : "0.0";
+  const blendedRoas = totalSpend > 0 ? (totalSales / totalSpend).toFixed(2) : "0.00";
   const totalWaste  = wastedKeywords.reduce((s, k) => s + k.spend, 0);
 
   // ── Sort ───────────────────────────────────────────────────────────────
@@ -237,9 +242,9 @@ export default function PPCOptimizerPage() {
       )}
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6 gap-4">
         {loading ? (
-          Array.from({ length: 4 }).map((_, i) => <CardSkeleton key={i} />)
+          Array.from({ length: 6 }).map((_, i) => <CardSkeleton key={i} />)
         ) : (
           <>
             {[
@@ -254,9 +259,19 @@ export default function PPCOptimizerPage() {
                 up: true,
               },
               {
+                label: "Total Ad Sales",
+                value: FMT(totalSales),
+                sub: `${campaigns.length} campaigns`,
+                icon: TrendingUp,
+                iconBg: "#F0FDF4",
+                iconColor: "#10B981",
+                badge: null,
+                up: true,
+              },
+              {
                 label: "Blended ACoS",
                 value: `${blendedAcos}%`,
-                sub: "Total spend / total sales",
+                sub: "Spend ÷ Ad sales",
                 icon: Target,
                 iconBg: parseFloat(blendedAcos) > 25 ? "#FFF1F2" : "#F0FDF4",
                 iconColor: parseFloat(blendedAcos) > 25 ? "#EF4444" : "#10B981",
@@ -264,10 +279,20 @@ export default function PPCOptimizerPage() {
                 up: parseFloat(blendedAcos) <= 25,
               },
               {
+                label: "Blended ROAS",
+                value: `${blendedRoas}x`,
+                sub: "Ad sales ÷ Spend",
+                icon: ArrowUpRight,
+                iconBg: "#F5F3FF",
+                iconColor: "#7C3AED",
+                badge: null,
+                up: parseFloat(blendedRoas) >= 3,
+              },
+              {
                 label: "Total Ad Orders",
                 value: totalOrders.toLocaleString(),
                 sub: totalOrders > 0
-                  ? `${FMT_DECIMAL(totalSales / totalOrders)} avg order value`
+                  ? `${FMT_DECIMAL(totalSales / totalOrders)} avg order`
                   : "No orders yet",
                 icon: TrendingUp,
                 iconBg: "#FDF4FF",
@@ -276,7 +301,7 @@ export default function PPCOptimizerPage() {
                 up: true,
               },
               {
-                label: "Identified Waste",
+                label: "Wasted Spend",
                 value: FMT(totalWaste),
                 sub: `${wastedKeywords.length} zero-order term${wastedKeywords.length !== 1 ? "s" : ""}`,
                 icon: AlertTriangle,
@@ -552,14 +577,18 @@ export default function PPCOptimizerPage() {
                 <section>
                   <div className="grid grid-cols-4 gap-2">
                     {[
-                      { label: "Spend",       value: FMT(selected.ad_spend) },
-                      { label: "Sales",       value: FMT(selected.ad_sales) },
-                      { label: "ROAS",        value: `${selected.roas.toFixed(1)}x` },
-                      { label: "Orders",      value: selected.ad_orders.toString() },
-                      { label: "Impressions", value: FMT_K(selected.impressions) },
-                      { label: "Clicks",      value: selected.clicks.toLocaleString() },
-                      { label: "CTR",         value: `${selected.ctr.toFixed(2)}%` },
-                      { label: "CVR",         value: `${selected.cvr.toFixed(1)}%` },
+                      { label: "Spend",          value: FMT(selected.ad_spend) },
+                      { label: "Sales",          value: FMT(selected.ad_sales) },
+                      { label: "ROAS",           value: `${selected.roas.toFixed(2)}x` },
+                      { label: "ACoS",           value: `${selected.acos.toFixed(1)}%` },
+                      { label: "Orders",         value: selected.ad_orders.toLocaleString() },
+                      { label: "Cost/Order",     value: FMT_DECIMAL((selected as typeof selected & { cost_per_order?: number }).cost_per_order ?? (selected.ad_orders > 0 ? selected.ad_spend / selected.ad_orders : 0)) },
+                      { label: "Impressions",    value: FMT_K(selected.impressions) },
+                      { label: "Clicks",         value: selected.clicks.toLocaleString() },
+                      { label: "CTR",            value: `${selected.ctr.toFixed(2)}%` },
+                      { label: "CVR",            value: `${selected.cvr.toFixed(1)}%` },
+                      { label: "CPC",            value: FMT_DECIMAL(selected.cpc) },
+                      { label: "Units",          value: ((selected as typeof selected & { ad_units?: number }).ad_units ?? 0).toLocaleString() },
                     ].map(({ label, value }) => (
                       <div
                         key={label}

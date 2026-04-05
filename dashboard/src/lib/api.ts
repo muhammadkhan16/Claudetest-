@@ -129,11 +129,13 @@ export interface IngestedCampaign {
   ad_spend: number;
   ad_sales: number;
   ad_orders: number;
-  acos: number;
-  roas: number;
-  ctr: number;
-  cpc: number;
-  cvr: number;
+  ad_units: number;
+  acos: number;      // ad_spend / ad_sales * 100
+  roas: number;      // ad_sales / ad_spend
+  ctr: number;       // clicks / impressions * 100
+  cpc: number;       // ad_spend / clicks
+  cvr: number;       // ad_orders / clicks * 100
+  cost_per_order: number; // ad_spend / ad_orders
   status: "healthy" | "warning" | "critical" | "no_sales";
 }
 

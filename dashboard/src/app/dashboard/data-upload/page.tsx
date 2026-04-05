@@ -3,8 +3,9 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import {
   Upload, FileText, CheckCircle2, AlertCircle,
-  X, RefreshCw, BarChart2, Target, Search,
+  X, RefreshCw, BarChart2, Target, Search, Construction, Link2,
 } from "lucide-react";
+import Link from "next/link";
 import { localStore } from "@/lib/local-store";
 import type { LocalUpload } from "@/lib/local-store";
 
@@ -127,8 +128,30 @@ export default function DataUploadPage() {
       <div>
         <h2 className="text-2xl font-bold text-[#0F172A]">Upload Amazon Reports</h2>
         <p className="text-sm text-[#94A3B8] mt-1">
-          Upload CSV exports from Amazon Seller Central — data reflects instantly across all dashboard pages
+          Upload CSV or Excel exports from Amazon Seller Central
         </p>
+      </div>
+
+      {/* WIP Notice */}
+      <div className="flex items-start gap-3 px-5 py-4 rounded-xl border border-amber-200 bg-amber-50">
+        <Construction size={17} className="text-amber-600 shrink-0 mt-0.5" />
+        <div className="flex-1">
+          <p className="text-sm font-semibold text-amber-800">
+            CSV / Excel upload — work in progress
+          </p>
+          <p className="text-xs text-amber-700 mt-0.5 leading-relaxed">
+            Column auto-detection is still being fine-tuned for all Amazon report formats.
+            Some data fields may not populate correctly depending on your report version.
+            For the best experience, connect your Amazon Seller Central account directly via SP-API — data syncs automatically with no manual exports needed.
+          </p>
+        </div>
+        <Link
+          href="/dashboard/amazon-connect"
+          className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-[#2563EB] hover:opacity-90 transition-opacity"
+        >
+          <Link2 size={11} />
+          Connect API
+        </Link>
       </div>
 
       {/* Download instructions */}

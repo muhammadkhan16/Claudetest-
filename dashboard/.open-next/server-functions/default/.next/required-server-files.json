@@ -296,17 +296,7 @@
     "turbopack": {
       "root": "C:\\Users\\dopek\\OneDrive\\Desktop\\Cursor Claude test\\dashboard"
     },
-    "distDirRoot": ".next",
-    "_originalRewrites": {
-      "beforeFiles": [],
-      "afterFiles": [
-        {
-          "source": "/api/:path*",
-          "destination": "http://localhost:3001/api/:path*"
-        }
-      ],
-      "fallback": []
-    }
+    "distDirRoot": ".next"
   },
   "appDir": "C:\\Users\\dopek\\OneDrive\\Desktop\\Cursor Claude test\\dashboard",
   "relativeAppDir": "",

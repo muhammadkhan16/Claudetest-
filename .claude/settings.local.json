@@ -7,7 +7,17 @@
       "Bash(taskkill //F //IM node.exe 2>/dev/null; echo \"killed\")",
       "Bash(cd \"/c/Users/dopek/OneDrive/Desktop/Cursor Claude test/dashboard\" && npm install 2>&1 | tail -5)",
       "Bash(npm run:*)",
-      "Bash(node -e \"const l = require\\(''lucide-react''\\); console.log\\(Object.keys\\(l\\).filter\\(k => k.toLowerCase\\(\\).includes\\(''image''\\) || k === ''Link2'' || k === ''LogOut''\\)\\)\")"
+      "Bash(node -e \"const l = require\\(''lucide-react''\\); console.log\\(Object.keys\\(l\\).filter\\(k => k.toLowerCase\\(\\).includes\\(''image''\\) || k === ''Link2'' || k === ''LogOut''\\)\\)\")",
+      "Bash(gh run:*)",
+      "Bash(gh secret:*)",
+      "Bash(curl -sI https://amazon-dashboard.pages.dev)",
+      "Bash(curl:*)",
+      "Bash(ls:*)",
+      "Bash(dir:*)",
+      "Bash(cd:*)",
+      "Bash(npm install:*)",
+      "Bash(npx wrangler:*)",
+      "Bash(npx tsc:*)"
     ]
   }
 }

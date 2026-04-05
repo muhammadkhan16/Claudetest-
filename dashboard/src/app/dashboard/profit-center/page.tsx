@@ -175,7 +175,12 @@ export default function ProfitCenterPage() {
     }
   }, [days]);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => {
+    fetchData();
+    const onBrandChange = () => fetchData();
+    window.addEventListener("amzsuite:brand-change", onBrandChange);
+    return () => window.removeEventListener("amzsuite:brand-change", onBrandChange);
+  }, [fetchData]);
 
   // KPI derived values
   const kpis = useMemo(() => {
