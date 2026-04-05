@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 import PdfDateRangeModal from "@/components/PdfDateRangeModal";
 import { captureToPdf } from "@/lib/pdf";
 import { ingestedApi, type IngestedCampaign, type WastedKeyword } from "@/lib/api";
+import { localStore } from "@/lib/local-store";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -122,10 +123,18 @@ export default function PPCOptimizerPage() {
         ingestedApi.getCampaigns(clientId, days),
         ingestedApi.getWastedKeywords(clientId, days),
       ]);
-      setCampaigns(campaignData);
-      setWastedKeywords(wastedData);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load data");
+      if (campaignData.length > 0) {
+        setCampaigns(campaignData);
+        setWastedKeywords(wastedData);
+      } else if (localStore.hasData()) {
+        setCampaigns(localStore.getCampaigns() as typeof campaignData);
+        setWastedKeywords(localStore.getWastedKeywords());
+      }
+    } catch {
+      if (localStore.hasData()) {
+        setCampaigns(localStore.getCampaigns() as ReturnType<typeof ingestedApi.getCampaigns> extends Promise<infer T> ? T : never);
+        setWastedKeywords(localStore.getWastedKeywords());
+      }
     } finally {
       setLoading(false);
     }

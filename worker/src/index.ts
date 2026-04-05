@@ -5,8 +5,206 @@ export interface Env {
 const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type",
+  "Access-Control-Allow-Headers": "Content-Type, Accept",
 };
+
+// ── CSV Processing ───────────────────────────────────────────────────────────
+
+const HEADER_ALIASES: Record<string, string[]> = {
+  report_date:          ["date", "report date", "day"],
+  asin:                 ["(child) asin", "child asin", "asin", "advertised asin", "product asin"],
+  product_title:        ["title", "product name", "product title", "advertised sku"],
+  sessions:             ["sessions", "session – total", "sessions - total", "sessions total"],
+  page_views:           ["page views", "page views – total", "page views - total", "page views total"],
+  buy_box_pct:          ["buy box percentage", "featured offer (buy box) percentage", "buy box %"],
+  units_ordered:        ["units ordered", "units ordered - total", "units ordered – total"],
+  revenue:              ["ordered product sales", "ordered product sales – total", "ordered product sales - total"],
+  unit_session_pct:     ["unit session percentage", "unit session percentage – total"],
+  campaign_name:        ["campaign name", "campaign"],
+  ad_group_name:        ["ad group name", "ad group"],
+  keyword:              ["keyword", "keyword text", "targeting"],
+  match_type:           ["match type", "keyword match type"],
+  customer_search_term: ["customer search term", "search term"],
+  impressions:          ["impressions", "ad impressions"],
+  clicks:               ["clicks", "ad clicks"],
+  ad_spend:             ["spend", "cost", "ad spend", "7 day total spend", "14 day total spend", "total spend"],
+  ad_sales:             ["7 day total sales", "14 day total sales", "total advertising sales", "sales", "attributed sales (total)"],
+  ad_orders:            ["7 day total orders (#)", "14 day total orders (#)", "orders", "total orders", "attributed conversions (total)"],
+  ad_units:             ["units", "7 day total units (#)"],
+  ctr:                  ["click-thru rate (ctr)", "ctr", "click through rate"],
+  cpc:                  ["cost per click (cpc)", "cpc", "cost-per-click"],
+  acos:                 ["advertising cost of sales (acos)", "acos", "total acos"],
+  conversion_rate:      ["conversion rate", "cvr", "order rate"],
+};
+
+// Build reverse lookup: header string → canonical key
+const REVERSE_MAP = new Map<string, string>();
+for (const [canonical, aliases] of Object.entries(HEADER_ALIASES)) {
+  for (const alias of aliases) REVERSE_MAP.set(alias.toLowerCase().trim(), canonical);
+}
+
+function detectSeparator(firstLine: string): string {
+  const tabs = (firstLine.match(/\t/g) ?? []).length;
+  const commas = (firstLine.match(/,/g) ?? []).length;
+  return tabs > commas ? "\t" : ",";
+}
+
+function parseCSVText(text: string): string[][] {
+  const cleaned = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").trim();
+  if (!cleaned) return [];
+  const sep = detectSeparator(cleaned.split("\n")[0]);
+  const rows: string[][] = [];
+  let i = 0;
+  while (i <= cleaned.length) {
+    const row: string[] = [];
+    while (i <= cleaned.length && cleaned[i] !== "\n") {
+      if (cleaned[i] === '"') {
+        i++;
+        let field = "";
+        while (i < cleaned.length) {
+          if (cleaned[i] === '"' && cleaned[i + 1] === '"') { field += '"'; i += 2; }
+          else if (cleaned[i] === '"') { i++; break; }
+          else { field += cleaned[i]; i++; }
+        }
+        row.push(field);
+        if (cleaned[i] === sep) i++;
+      } else {
+        let j = i;
+        while (j < cleaned.length && cleaned[j] !== sep && cleaned[j] !== "\n") j++;
+        row.push(cleaned.slice(i, j).trim());
+        i = j;
+        if (cleaned[i] === sep) i++;
+      }
+    }
+    if (cleaned[i] === "\n") i++;
+    else i++;
+    if (row.some((c) => c.length > 0)) rows.push(row);
+  }
+  return rows;
+}
+
+function detectReportType(headers: string[]): string {
+  const h = headers.map((x) => x.toLowerCase().trim());
+  const has = (t: string) => h.some((x) => x.includes(t));
+  if (has("customer search term") || has("search term")) return "search_terms";
+  if (has("campaign name") || has("campaign") || has("acos")) return "ppc";
+  return "business_report";
+}
+
+function toNum(s: string | undefined): number {
+  if (!s) return 0;
+  const n = parseFloat(s.replace(/[$,%\s"]/g, ""));
+  return isNaN(n) ? 0 : n;
+}
+
+function toPct(s: string | undefined): number {
+  if (!s) return 0;
+  const cleaned = s.replace(/[%,\s"]/g, "");
+  const n = parseFloat(cleaned);
+  if (isNaN(n)) return 0;
+  return s.includes("%") ? n / 100 : n;
+}
+
+function cleanAsin(s: string | undefined): string {
+  if (!s) return "";
+  const c = s.replace(/"/g, "").trim().toUpperCase();
+  return /^B[A-Z0-9]{9}$/.test(c) ? c : "";
+}
+
+async function handleProcessCSV(request: Request): Promise<Response> {
+  let text = "";
+  let filename = "upload.csv";
+
+  const contentType = request.headers.get("content-type") ?? "";
+  if (contentType.includes("multipart/form-data")) {
+    const form = await request.formData();
+    const file = form.get("file");
+    if (!file || typeof file === "string") return error("No file uploaded", 400);
+    text = await (file as File).text();
+    filename = (file as File).name || filename;
+  } else {
+    text = await request.text();
+  }
+
+  if (!text.trim()) return error("Empty file", 400);
+
+  const rows = parseCSVText(text);
+  if (rows.length < 2) return error("CSV has no data rows", 400);
+
+  const headers = rows[0];
+  const reportType = detectReportType(headers);
+
+  // Build column index: canonical key → column index
+  const colIndex = new Map<string, number>();
+  headers.forEach((raw, i) => {
+    const key = REVERSE_MAP.get(raw.toLowerCase().trim());
+    if (key && !colIndex.has(key)) colIndex.set(key, i);
+  });
+
+  const get = (row: string[], key: string): string | undefined => {
+    const idx = colIndex.get(key);
+    return idx !== undefined ? row[idx]?.trim() : undefined;
+  };
+
+  const normalized: Record<string, unknown>[] = [];
+
+  for (let r = 1; r < rows.length; r++) {
+    const row = rows[r];
+    if (row.every((c) => !c)) continue;
+
+    const dateStr = get(row, "report_date");
+    const reportDate = dateStr ? new Date(dateStr).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10);
+
+    if (reportType === "business_report") {
+      const asin = cleanAsin(get(row, "asin"));
+      if (!asin) continue;
+      normalized.push({
+        report_date: reportDate,
+        asin,
+        product_title:    get(row, "product_title") || asin,
+        sessions:         toNum(get(row, "sessions")),
+        page_views:       toNum(get(row, "page_views")),
+        buy_box_pct:      toPct(get(row, "buy_box_pct")),
+        units_ordered:    toNum(get(row, "units_ordered")),
+        revenue:          toNum(get(row, "revenue")),
+        unit_session_pct: toPct(get(row, "unit_session_pct")),
+      });
+    } else if (reportType === "ppc") {
+      const campaign = get(row, "campaign_name");
+      if (!campaign) continue;
+      normalized.push({
+        report_date:   reportDate,
+        campaign_name: campaign,
+        ad_group_name: get(row, "ad_group_name") || "",
+        keyword:       get(row, "keyword") || "",
+        match_type:    get(row, "match_type") || "",
+        impressions:   toNum(get(row, "impressions")),
+        clicks:        toNum(get(row, "clicks")),
+        ad_spend:      toNum(get(row, "ad_spend")),
+        ad_sales:      toNum(get(row, "ad_sales")),
+        ad_orders:     toNum(get(row, "ad_orders")),
+        acos:          toPct(get(row, "acos")),
+        ctr:           toPct(get(row, "ctr")),
+        cpc:           toNum(get(row, "cpc")),
+      });
+    } else {
+      // search_terms
+      const term = get(row, "customer_search_term") || get(row, "keyword");
+      if (!term) continue;
+      normalized.push({
+        report_date: reportDate,
+        term,
+        campaign_name: get(row, "campaign_name") || "",
+        impressions:   toNum(get(row, "impressions")),
+        clicks:        toNum(get(row, "clicks")),
+        ad_spend:      toNum(get(row, "ad_spend")),
+        ad_orders:     toNum(get(row, "ad_orders")),
+      });
+    }
+  }
+
+  return json({ report_type: reportType, filename, row_count: normalized.length, rows: normalized });
+}
 
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify({ success: true, data }), {
@@ -443,6 +641,10 @@ export default {
 
     if (url.pathname === "/api/enhance-images" && request.method === "POST") {
       return handleEnhanceImages(request, env);
+    }
+
+    if (url.pathname === "/api/process-csv" && request.method === "POST") {
+      return handleProcessCSV(request);
     }
 
     if (url.pathname === "/api/health" && request.method === "GET") {

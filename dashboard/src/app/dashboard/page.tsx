@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import PdfDateRangeModal from "@/components/PdfDateRangeModal";
 import { captureToPdf } from "@/lib/pdf";
 import { metricsApi, uploadsApi } from "@/lib/api";
+import { localStore } from "@/lib/local-store";
 import type { OverviewMetrics, TrendPoint, TopProduct } from "@/lib/types";
 import type { UploadJob } from "@/lib/api";
 
@@ -163,9 +164,31 @@ export default function OverviewPage() {
       if (tr.status === "fulfilled") setTrend(tr.value);
       if (tp.status === "fulfilled") setTopProducts(tp.value);
       if (uploads.status === "fulfilled") setRecentUploads(uploads.value.slice(0, 5));
-    } finally {
-      setLoading(false);
+    } catch { /* ignore */ }
+
+    // Fall back to localStorage if API returned nothing
+    if (!overview && !trend.length && localStore.hasData()) {
+      const localTrend = localStore.getTrend();
+      const localProducts = localStore.getProducts();
+      const { totalRevenue, totalOrders, totalSpend } = localStore.getOverview();
+      setTrend(localTrend);
+      setTopProducts(localProducts.slice(0, 5) as unknown as TopProduct[]);
+      setOverview({
+        revenue: { value: totalRevenue, formatted: `$${totalRevenue.toLocaleString()}`, change: 0, changeLabel: "—", trend: "flat" },
+        orders: { value: totalOrders, change: 0, changeLabel: "—", trend: "flat" },
+        adSpend: { value: totalSpend, formatted: `$${totalSpend.toLocaleString()}`, acos: totalRevenue > 0 ? (totalSpend / totalRevenue) * 100 : 0, roas: totalSpend > 0 ? totalRevenue / totalSpend : 0 },
+        activeClients: 1,
+      });
+      setRecentUploads(
+        localStore.getUploads().slice(0, 5).map((u, i) => ({
+          id: i + 1, client_id: 1, report_type: u.report_type as "business_report" | "ppc" | "search_terms",
+          filename: u.filename, file_size: 0, status: "completed" as const,
+          rows_parsed: u.row_count, rows_inserted: u.row_count,
+          created_at: u.date,
+        }))
+      );
     }
+    setLoading(false);
   }
 
   async function downloadPdf(dateRange: { label: string; from: Date; to: Date }) {

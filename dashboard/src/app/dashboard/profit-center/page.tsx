@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { ingestedApi, type IngestedProduct } from "@/lib/api";
+import { localStore } from "@/lib/local-store";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -159,9 +160,16 @@ export default function ProfitCenterPage() {
     setError(null);
     try {
       const data = await ingestedApi.getProducts(CLIENT_ID, days);
-      setProducts(data);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load products");
+      if (data.length > 0) {
+        setProducts(data);
+      } else if (localStore.hasData()) {
+        setProducts(localStore.getProducts() as typeof data);
+      }
+    } catch {
+      // API unavailable — try localStorage
+      if (localStore.hasData()) {
+        setProducts(localStore.getProducts() as ReturnType<typeof ingestedApi.getProducts> extends Promise<infer T> ? T : never);
+      }
     } finally {
       setLoading(false);
     }
